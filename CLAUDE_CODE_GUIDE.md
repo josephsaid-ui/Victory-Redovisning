@@ -2698,6 +2698,1897 @@ cat .claude/settings.json
 
 ---
 
+## 11. Teknologi-Specifika Guider och Exempel {#teknologi-specifika-guider}
+
+Detta kapitel ger dig konkreta, produktionsklara exempel för populära teknologier och frameworks. Varje sektion innehåller komplett CLAUDE.md mall, projektstruktur, och best practices.
+
+### Next.js - Full-Stack React Framework
+
+#### Next.js App Router (v13+) CLAUDE.md Mall
+
+```markdown
+# [Projektnamn] - Next.js App Router
+
+## Översikt
+[Beskriv din app - t.ex. "E-commerce platform med server-side rendering"]
+
+## Teknisk Stack
+- **Framework**: Next.js 14+ (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Database**: Prisma + PostgreSQL (Supabase/Vercel Postgres)
+- **Auth**: NextAuth.js v5 (Auth.js)
+- **State**: React Server Components + Zustand (client state)
+- **Forms**: React Hook Form + Zod
+- **Testing**: Vitest + Playwright
+
+## Projektstruktur
+
+```
+app/
+├── (auth)/              # Auth route group
+│   ├── login/
+│   └── register/
+├── (marketing)/         # Marketing pages (different layout)
+│   ├── page.tsx        # Homepage
+│   └── about/
+├── (dashboard)/         # Protected dashboard
+│   ├── layout.tsx      # Dashboard layout
+│   └── profile/
+├── api/                 # API routes
+│   ├── auth/
+│   └── webhooks/
+└── layout.tsx          # Root layout
+
+components/
+├── ui/                 # shadcn/ui components
+├── forms/              # Form components
+└── shared/             # Shared components
+
+lib/
+├── db.ts              # Prisma client
+├── auth.ts            # NextAuth config
+├── utils.ts           # Utilities
+└── validations.ts     # Zod schemas
+
+actions/               # Server Actions
+├── user-actions.ts
+└── product-actions.ts
+```
+
+## Next.js Specifika Regler
+
+### Server vs Client Components
+- **DEFAULT**: Server Components
+- **'use client'** endast när:
+  - Använder hooks (useState, useEffect, etc.)
+  - Event handlers (onClick, onChange)
+  - Browser APIs (localStorage, window)
+  - React Context consumers
+
+### Data Fetching Patterns
+
+#### ✅ Server Components (Preferred)
+```tsx
+// app/products/page.tsx
+import { prisma } from '@/lib/db'
+
+export default async function ProductsPage() {
+  // Direct database access - inget API behövs
+  const products = await prisma.product.findMany()
+
+  return <ProductList products={products} />
+}
+```
+
+#### ✅ Server Actions (Mutations)
+```tsx
+// actions/product-actions.ts
+'use server'
+
+import { revalidatePath } from 'next/cache'
+
+export async function createProduct(formData: FormData) {
+  // Validera
+  const validated = productSchema.parse({
+    name: formData.get('name'),
+  })
+
+  // Skapa
+  await prisma.product.create({ data: validated })
+
+  // Revalidate cache
+  revalidatePath('/products')
+}
+```
+
+#### ❌ Undvik API Routes för Intern Data
+```tsx
+// ❌ UNDVIK DETTA
+async function getProducts() {
+  const res = await fetch('/api/products')
+  return res.json()
+}
+
+// ✅ GÖR DETTA ISTÄLLET
+async function getProducts() {
+  return await prisma.product.findMany()
+}
+```
+
+### Routing Konventioner
+- **page.tsx**: Route page
+- **layout.tsx**: Shared layout
+- **loading.tsx**: Loading UI (Suspense fallback)
+- **error.tsx**: Error boundary
+- **not-found.tsx**: 404 page
+- **(gruppnamn)**: Route groups (påverkar inte URL)
+
+### Caching & Revalidation
+```tsx
+// Statisk - cached permanently
+export const revalidate = false
+
+// ISR - revalidate efter 60 sekunder
+export const revalidate = 60
+
+// Dynamic - ingen cache
+export const dynamic = 'force-dynamic'
+
+// Per-request revalidation
+import { revalidatePath, revalidateTag } from 'next/cache'
+```
+
+## Testing
+
+### Unit Tests (Vitest)
+```bash
+npm run test              # Kör alla unit tests
+npm run test:watch        # Watch mode
+```
+
+### E2E Tests (Playwright)
+```bash
+npm run test:e2e          # Kör E2E tests
+npm run test:e2e:ui       # UI mode
+```
+
+### Test Konventioner
+```
+app/products/page.test.tsx        # Component tests
+actions/product-actions.test.ts   # Server action tests
+e2e/checkout.spec.ts              # E2E tests
+```
+
+## Environment Variables
+
+```bash
+# .env.local
+DATABASE_URL="postgresql://..."
+NEXTAUTH_SECRET="..."
+NEXTAUTH_URL="http://localhost:3000"
+
+# För nya env vars:
+# 1. Lägg till i .env.local
+# 2. Lägg till i .env.example (utan värden)
+# 3. Uppdatera denna dokumentation
+# 4. Restart dev server
+```
+
+## Vanliga Kommandon
+
+```bash
+npm run dev              # Dev server (http://localhost:3000)
+npm run build            # Production build
+npm run start            # Starta production server
+npm run lint             # ESLint
+npm run type-check       # TypeScript check
+
+# Database (Prisma)
+npx prisma studio        # Database GUI
+npx prisma migrate dev   # Skapa migration
+npx prisma generate      # Generera Prisma client
+npx prisma db push       # Push schema (dev only)
+```
+
+## Deployment (Vercel)
+
+```bash
+# Lokal preview av production build
+npm run build && npm run start
+
+# Vercel deployment sker automatiskt vid push till main
+# Konfigurera env vars i Vercel dashboard
+```
+
+## KRITISKA SÄKERHETSREGLER
+
+### Server Actions
+- **VALIDERA ALLTID** input med Zod
+- **VERIFIERA** användarbehörighet
+- **ANVÄND** try-catch för error handling
+
+```tsx
+// ✅ BRA
+'use server'
+
+import { auth } from '@/lib/auth'
+import { productSchema } from '@/lib/validations'
+
+export async function createProduct(formData: FormData) {
+  // 1. Check auth
+  const session = await auth()
+  if (!session) throw new Error('Unauthorized')
+
+  // 2. Validate input
+  const data = productSchema.parse({
+    name: formData.get('name'),
+  })
+
+  // 3. Create
+  try {
+    return await prisma.product.create({ data })
+  } catch (error) {
+    // 4. Handle errors safely
+    throw new Error('Failed to create product')
+  }
+}
+```
+
+### API Routes
+- **ENDAST för**:
+  - Webhooks (Stripe, etc.)
+  - External API endpoints
+  - OAuth callbacks
+- **INTE för** intern data fetching
+
+### Environment Variables
+- **NEXT_PUBLIC_** prefix för client-exposed vars
+- **ALDRIG** exponera secrets till client
+- Validera env vars vid startup
+
+## Performance Best Practices
+
+### Images
+```tsx
+// ✅ Använd Next.js Image
+import Image from 'next/image'
+
+<Image
+  src="/product.jpg"
+  alt="Product"
+  width={500}
+  height={300}
+  priority={isAboveTheFold}
+/>
+```
+
+### Fonts
+```tsx
+// ✅ Använd next/font
+import { Inter } from 'next/font/google'
+
+const inter = Inter({ subsets: ['latin'] })
+
+export default function RootLayout({ children }) {
+  return <html className={inter.className}>{children}</html>
+}
+```
+
+### Metadata
+```tsx
+// app/products/[id]/page.tsx
+export async function generateMetadata({ params }) {
+  const product = await getProduct(params.id)
+
+  return {
+    title: product.name,
+    description: product.description,
+    openGraph: {
+      images: [product.image],
+    },
+  }
+}
+```
+
+## Common Pitfalls & Solutions
+
+### ❌ Problem: "Error: useState can only be used in Client Components"
+```tsx
+// ✅ Lösning: Lägg till 'use client'
+'use client'
+
+import { useState } from 'react'
+```
+
+### ❌ Problem: Server Action inte funkar
+```tsx
+// Kontrollera:
+// 1. 'use server' direktiv finns
+// 2. Function är async
+// 3. Export är named export
+// 4. revalidatePath anropas efter mutations
+```
+
+### ❌ Problem: Data cachas för länge
+```tsx
+// Lösning 1: Dynamic rendering
+export const dynamic = 'force-dynamic'
+
+// Lösning 2: Revalidation
+export const revalidate = 0
+
+// Lösning 3: Cache control
+fetch(url, { cache: 'no-store' })
+```
+```
+
+#### Next.js Workflow med Claude
+
+**Setup New Next.js Project:**
+
+```
+Du: "Skapa ett nytt Next.js projekt med följande spec:
+
+TECH STACK:
+- Next.js 14 App Router
+- TypeScript
+- Tailwind CSS + shadcn/ui
+- Prisma + PostgreSQL
+- NextAuth.js
+- Zod för validation
+
+PROJECT TYPE:
+- E-commerce platform
+
+INITIAL FEATURES:
+- Product listing
+- User authentication
+- Shopping cart
+
+Använd detta workflow:
+1. Initiera projektet
+2. Installera dependencies
+3. Sätt upp database
+4. Konfigurera auth
+5. Skapa CLAUDE.md
+6. Vänta på mitt godkännande innan du implementerar features"
+
+Claude: [går igenom setup steg för steg]
+```
+
+**Adding a New Feature (Server Actions):**
+
+```
+Du: "Implementera 'Add to Cart' funktionalitet.
+
+REQUIREMENTS:
+- Server Action för att lägga till item
+- Optimistic UI update
+- Toast notification
+- Persist till database
+
+Använd TDD - skriv tests först."
+
+Claude:
+# 1. Skapar Zod schema
+# 2. Skriver tests för server action
+# 3. Implementerar server action
+# 4. Skapar client component med optimistic update
+# 5. Integrerar med cart context
+```
+
+**Database Schema Changes:**
+
+```
+Du: "Lägg till 'reviews' feature till products.
+
+1. Uppdatera Prisma schema
+2. Skapa migration
+3. Generera types
+4. Skapa server actions för CRUD
+5. Implementera UI komponenter"
+
+Claude:
+$ npx prisma migrate dev --name add_reviews
+$ npx prisma generate
+[implementerar features steg för steg]
+```
+
+---
+
+### Vue 3 - Progressive Framework
+
+#### Vue 3 Composition API CLAUDE.md Mall
+
+```markdown
+# [Projektnamn] - Vue 3
+
+## Översikt
+[Beskriv din app]
+
+## Teknisk Stack
+- **Framework**: Vue 3.4+ (Composition API)
+- **Build Tool**: Vite
+- **Language**: TypeScript
+- **State**: Pinia
+- **Router**: Vue Router 4
+- **Forms**: VeeValidate + Zod
+- **UI**: Vuetify / PrimeVue / Custom
+- **Testing**: Vitest + Vue Test Utils + Playwright
+
+## Projektstruktur
+
+```
+src/
+├── components/
+│   ├── ui/              # Reusable UI components
+│   ├── features/        # Feature-specific components
+│   └── layouts/         # Layout components
+├── composables/         # Composition functions (hooks)
+│   ├── useAuth.ts
+│   ├── useApi.ts
+│   └── useCart.ts
+├── stores/              # Pinia stores
+│   ├── auth.ts
+│   └── products.ts
+├── views/               # Route views/pages
+│   ├── HomeView.vue
+│   └── ProductsView.vue
+├── router/
+│   └── index.ts
+├── types/
+│   └── models.ts
+├── services/            # API services
+│   └── api.ts
+└── App.vue
+```
+
+## Vue 3 Specifika Regler
+
+### Composition API (Standard)
+- **ANVÄND ALLTID** Composition API, INTE Options API
+- **ANVÄND** `<script setup>` syntax
+- **TypeScript** i alla komponenter
+
+#### ✅ Rätt Approach (Composition API)
+```vue
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+
+interface Props {
+  title: string
+  count?: number
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  count: 0
+})
+
+const emit = defineEmits<{
+  update: [value: number]
+}>()
+
+const localCount = ref(props.count)
+
+const doubled = computed(() => localCount.value * 2)
+
+function increment() {
+  localCount.value++
+  emit('update', localCount.value)
+}
+</script>
+
+<template>
+  <div>
+    <h2>{{ title }}</h2>
+    <p>Count: {{ localCount }} (doubled: {{ doubled }})</p>
+    <button @click="increment">Increment</button>
+  </div>
+</template>
+```
+
+#### ❌ Undvik Options API
+```vue
+<!-- ❌ ANVÄND INTE DETTA -->
+<script lang="ts">
+export default {
+  data() {
+    return { count: 0 }
+  },
+  computed: {
+    doubled() {
+      return this.count * 2
+    }
+  }
+}
+</script>
+```
+
+### Component Naming
+- **Komponenter**: PascalCase (UserCard.vue)
+- **Composables**: camelCase med 'use' prefix (useAuth.ts)
+- **Stores**: camelCase (authStore.ts)
+
+### State Management med Pinia
+
+```typescript
+// stores/auth.ts
+import { defineStore } from 'pinia'
+import { ref, computed } from 'vue'
+
+export const useAuthStore = defineStore('auth', () => {
+  // State
+  const user = ref<User | null>(null)
+  const token = ref<string | null>(null)
+
+  // Getters
+  const isAuthenticated = computed(() => !!user.value)
+  const userName = computed(() => user.value?.name ?? 'Guest')
+
+  // Actions
+  async function login(email: string, password: string) {
+    const response = await api.login(email, password)
+    user.value = response.user
+    token.value = response.token
+  }
+
+  function logout() {
+    user.value = null
+    token.value = null
+  }
+
+  return {
+    user,
+    token,
+    isAuthenticated,
+    userName,
+    login,
+    logout,
+  }
+})
+```
+
+### Composables Pattern
+
+```typescript
+// composables/useApi.ts
+import { ref } from 'vue'
+
+export function useApi<T>(fetcher: () => Promise<T>) {
+  const data = ref<T | null>(null)
+  const error = ref<Error | null>(null)
+  const loading = ref(false)
+
+  async function execute() {
+    loading.value = true
+    error.value = null
+
+    try {
+      data.value = await fetcher()
+    } catch (e) {
+      error.value = e as Error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return {
+    data,
+    error,
+    loading,
+    execute,
+  }
+}
+
+// Usage i komponent:
+const { data: products, loading, execute } = useApi(() =>
+  api.getProducts()
+)
+
+onMounted(() => execute())
+```
+
+## Testing
+
+### Unit Tests
+```bash
+npm run test              # Vitest
+npm run test:watch        # Watch mode
+npm run test:coverage     # Med coverage
+```
+
+### Component Testing
+```typescript
+// UserCard.test.ts
+import { mount } from '@vue/test-utils'
+import { describe, it, expect } from 'vitest'
+import UserCard from './UserCard.vue'
+
+describe('UserCard', () => {
+  it('renders user name', () => {
+    const wrapper = mount(UserCard, {
+      props: {
+        user: { name: 'John Doe', email: 'john@example.com' }
+      }
+    })
+
+    expect(wrapper.text()).toContain('John Doe')
+  })
+
+  it('emits edit event on button click', async () => {
+    const wrapper = mount(UserCard, {
+      props: { user: mockUser }
+    })
+
+    await wrapper.find('button').trigger('click')
+
+    expect(wrapper.emitted('edit')).toBeTruthy()
+  })
+})
+```
+
+### E2E Tests (Playwright)
+```bash
+npm run test:e2e
+```
+
+## Vanliga Kommandon
+
+```bash
+npm run dev              # Dev server
+npm run build            # Production build
+npm run preview          # Preview build
+npm run lint             # ESLint
+npm run type-check       # Vue TSC
+```
+
+## VIKTIGA REGLER
+
+### Reactivity
+- **ANVÄND** `ref()` för primitives
+- **ANVÄND** `reactive()` för objekt (men `ref()` funkar också)
+- **ANVÄND** `.value` för att accessa ref values i `<script>`
+- **INGEN** `.value` i `<template>`
+
+### Props & Emits
+- **DEFINIERA** types för props och emits
+- **ANVÄND** `withDefaults` för default values
+- **EMIT** events för child → parent communication
+
+### Performance
+- **ANVÄND** `computed()` för derived state
+- **ANVÄND** `v-once` för static content
+- **ANVÄND** `v-memo` för expensive re-renders
+- **LAZY LOAD** komponenter med `defineAsyncComponent()`
+
+```typescript
+// Lazy loading
+const HeavyComponent = defineAsyncComponent(() =>
+  import('./components/HeavyComponent.vue')
+)
+```
+
+## Common Pitfalls
+
+### ❌ Glömmer .value
+```typescript
+// ❌ FEL
+const count = ref(0)
+count++ // Funkar inte!
+
+// ✅ RÄTT
+count.value++
+```
+
+### ❌ Destructuring reactive objects
+```typescript
+// ❌ FEL - förlorar reactivity
+const { name } = reactive({ name: 'John' })
+
+// ✅ RÄTT - behåll reactivity
+const user = reactive({ name: 'John' })
+// eller
+const { name } = toRefs(reactive({ name: 'John' }))
+```
+
+### ❌ Modifierar props
+```typescript
+// ❌ FEL
+const props = defineProps<{ count: number }>()
+props.count++ // ALDRIG modifiera props!
+
+// ✅ RÄTT - använd local state
+const localCount = ref(props.count)
+localCount.value++
+```
+```
+
+#### Vue 3 Workflow med Claude
+
+```
+Du: "Skapa en Vue 3 app för task management.
+
+TECH:
+- Vue 3 + TypeScript
+- Vite
+- Pinia
+- Vue Router
+- Tailwind CSS
+
+FEATURES:
+- Task CRUD
+- Filter by status
+- LocalStorage persistence
+
+Setup projektet och skapa CLAUDE.md först."
+
+Claude: [setup + dokumentation]
+
+/clear
+
+Du: "Implementera task store med Pinia.
+     Använd Composition API approach.
+     Skriv tests först."
+
+Claude: [TDD implementation]
+```
+
+---
+
+### Node.js + Express Backend API
+
+#### Express API CLAUDE.md Mall
+
+```markdown
+# [API Namn] - Express REST API
+
+## Översikt
+[Beskriv API:t - t.ex. "User management API med authentication"]
+
+## Teknisk Stack
+- **Runtime**: Node.js 20+
+- **Framework**: Express.js
+- **Language**: TypeScript
+- **Database**: PostgreSQL med Prisma ORM
+- **Auth**: JWT (jsonwebtoken)
+- **Validation**: Zod
+- **Testing**: Jest + Supertest
+- **Documentation**: Swagger/OpenAPI
+
+## Projektstruktur
+
+```
+src/
+├── controllers/        # Request handlers
+│   ├── auth.controller.ts
+│   └── user.controller.ts
+├── services/          # Business logic
+│   ├── auth.service.ts
+│   └── user.service.ts
+├── routes/            # Route definitions
+│   ├── auth.routes.ts
+│   └── user.routes.ts
+├── middleware/        # Express middleware
+│   ├── auth.middleware.ts
+│   ├── error.middleware.ts
+│   └── validate.middleware.ts
+├── models/            # Prisma schema
+│   └── schema.prisma
+├── utils/
+│   ├── errors.ts      # Custom error classes
+│   ├── logger.ts      # Winston logger
+│   └── jwt.ts         # JWT utilities
+├── types/
+│   └── express.d.ts   # Type extensions
+├── config/
+│   └── env.ts         # Environment config
+└── server.ts          # App entry point
+```
+
+## API Konventioner
+
+### REST Endpoint Structure
+```
+/api/v1/resource
+```
+
+### HTTP Methods
+- **GET**: Retrieve data
+- **POST**: Create new resource
+- **PUT**: Update entire resource
+- **PATCH**: Partial update
+- **DELETE**: Delete resource
+
+### Response Format
+
+#### Success Response
+```typescript
+{
+  "success": true,
+  "data": { ... },
+  "message": "Optional message"
+}
+```
+
+#### Error Response
+```typescript
+{
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human readable message",
+    "details": { ... } // Optional
+  }
+}
+```
+
+### Status Codes
+- **200**: OK (GET, PUT, PATCH)
+- **201**: Created (POST)
+- **204**: No Content (DELETE)
+- **400**: Bad Request (validation error)
+- **401**: Unauthorized (authentication required)
+- **403**: Forbidden (authorization failed)
+- **404**: Not Found
+- **500**: Internal Server Error
+
+## Request/Response Pattern
+
+### Controller → Service → Database
+
+```typescript
+// controllers/user.controller.ts
+export const getUser = asyncHandler(async (req, res) => {
+  const { id } = userIdSchema.parse(req.params)
+
+  const user = await userService.getUserById(id)
+
+  if (!user) {
+    throw new NotFoundError('User not found')
+  }
+
+  res.json({
+    success: true,
+    data: user,
+  })
+})
+
+// services/user.service.ts
+export const userService = {
+  async getUserById(id: string) {
+    return await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        // NEVER return password
+      },
+    })
+  },
+}
+
+// routes/user.routes.ts
+import { Router } from 'express'
+import { authenticate } from '../middleware/auth.middleware'
+
+const router = Router()
+
+router.get('/:id', authenticate, getUser)
+
+export default router
+```
+
+## Validation med Zod
+
+```typescript
+// Definiera schema
+import { z } from 'zod'
+
+export const createUserSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  name: z.string().min(2).max(100),
+})
+
+// Middleware
+export const validate = (schema: z.ZodSchema) => {
+  return async (req, res, next) => {
+    try {
+      req.body = await schema.parseAsync(req.body)
+      next()
+    } catch (error) {
+      next(new ValidationError(error))
+    }
+  }
+}
+
+// Usage
+router.post('/users', validate(createUserSchema), createUser)
+```
+
+## Authentication Pattern
+
+```typescript
+// middleware/auth.middleware.ts
+export const authenticate = asyncHandler(async (req, res, next) => {
+  const token = req.headers.authorization?.replace('Bearer ', '')
+
+  if (!token) {
+    throw new UnauthorizedError('No token provided')
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!)
+    req.user = await userService.getUserById(decoded.userId)
+
+    if (!req.user) {
+      throw new UnauthorizedError('Invalid token')
+    }
+
+    next()
+  } catch (error) {
+    throw new UnauthorizedError('Invalid token')
+  }
+})
+
+// Extend Express Request type
+declare global {
+  namespace Express {
+    interface Request {
+      user?: User
+    }
+  }
+}
+```
+
+## Error Handling
+
+```typescript
+// utils/errors.ts
+export class AppError extends Error {
+  constructor(
+    public statusCode: number,
+    public message: string,
+    public code: string,
+  ) {
+    super(message)
+  }
+}
+
+export class NotFoundError extends AppError {
+  constructor(message = 'Resource not found') {
+    super(404, message, 'NOT_FOUND')
+  }
+}
+
+export class UnauthorizedError extends AppError {
+  constructor(message = 'Unauthorized') {
+    super(401, message, 'UNAUTHORIZED')
+  }
+}
+
+// middleware/error.middleware.ts
+export const errorHandler = (err, req, res, next) => {
+  logger.error(err)
+
+  if (err instanceof AppError) {
+    return res.status(err.statusCode).json({
+      success: false,
+      error: {
+        code: err.code,
+        message: err.message,
+      },
+    })
+  }
+
+  // Unexpected errors
+  res.status(500).json({
+    success: false,
+    error: {
+      code: 'INTERNAL_ERROR',
+      message: 'An unexpected error occurred',
+    },
+  })
+}
+```
+
+## Testing
+
+### Unit Tests (Services)
+```typescript
+// user.service.test.ts
+describe('UserService', () => {
+  describe('getUserById', () => {
+    it('should return user when found', async () => {
+      const user = await userService.getUserById('123')
+      expect(user).toBeDefined()
+      expect(user?.email).toBe('test@example.com')
+    })
+
+    it('should return null when not found', async () => {
+      const user = await userService.getUserById('nonexistent')
+      expect(user).toBeNull()
+    })
+  })
+})
+```
+
+### Integration Tests (Routes)
+```typescript
+// user.routes.test.ts
+import request from 'supertest'
+import app from '../server'
+
+describe('GET /api/v1/users/:id', () => {
+  it('should return user when authenticated', async () => {
+    const token = await getAuthToken()
+
+    const response = await request(app)
+      .get('/api/v1/users/123')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+
+    expect(response.body.success).toBe(true)
+    expect(response.body.data.email).toBe('test@example.com')
+  })
+
+  it('should return 401 when not authenticated', async () => {
+    await request(app)
+      .get('/api/v1/users/123')
+      .expect(401)
+  })
+})
+```
+
+## Environment Variables
+
+```bash
+# .env
+NODE_ENV=development
+PORT=3000
+DATABASE_URL="postgresql://..."
+JWT_SECRET="..."
+JWT_EXPIRES_IN="7d"
+
+# Validera vid startup
+import { z } from 'zod'
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'production', 'test']),
+  PORT: z.string().transform(Number),
+  DATABASE_URL: z.string().url(),
+  JWT_SECRET: z.string().min(32),
+})
+
+export const env = envSchema.parse(process.env)
+```
+
+## Vanliga Kommandon
+
+```bash
+npm run dev              # Development (nodemon)
+npm run build            # Build TypeScript
+npm start                # Production
+npm test                 # Run tests
+npm run test:watch       # Watch mode
+npm run lint             # ESLint
+npm run migrate          # Prisma migrate
+npm run db:studio        # Prisma Studio
+```
+
+## KRITISKA SÄKERHETSREGLER
+
+### Input Validation
+- **VALIDERA ALLTID** med Zod schemas
+- **SANITERA** all input
+- **ANVÄND** parameterized queries (Prisma gör detta)
+
+### Authentication & Authorization
+- **ANVÄND** bcrypt för passwords (cost >= 12)
+- **LAGRA ALDRIG** plaintext passwords
+- **VERIFIERA** JWT på varje protected endpoint
+- **IMPLEMENTERA** rate limiting
+
+```typescript
+import rateLimit from 'express-rate-limit'
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 5, // 5 requests per window
+  message: 'Too many login attempts',
+})
+
+router.post('/login', authLimiter, login)
+```
+
+### Security Headers
+```typescript
+import helmet from 'helmet'
+import cors from 'cors'
+
+app.use(helmet())
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(','),
+  credentials: true,
+}))
+```
+
+### Secrets Management
+- **ANVÄND** environment variables
+- **ALDRIG** commit .env
+- **ROTERA** secrets regelbundet
+- **ANVÄND** secrets manager i production (AWS Secrets Manager, etc.)
+
+## Database Best Practices
+
+### Prisma Patterns
+```typescript
+// ✅ Select only needed fields
+const user = await prisma.user.findUnique({
+  where: { id },
+  select: {
+    id: true,
+    email: true,
+    // Specifikt vad som behövs
+  },
+})
+
+// ✅ Use transactions for related updates
+await prisma.$transaction([
+  prisma.user.update({ ... }),
+  prisma.profile.create({ ... }),
+])
+
+// ✅ Handle errors gracefully
+try {
+  await prisma.user.create({ data })
+} catch (error) {
+  if (error.code === 'P2002') {
+    throw new ConflictError('User already exists')
+  }
+  throw error
+}
+```
+
+## Logging
+
+```typescript
+import winston from 'winston'
+
+export const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.json(),
+  transports: [
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' }),
+  ],
+})
+
+// Log all requests
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.path}`, {
+    ip: req.ip,
+    userAgent: req.get('user-agent'),
+  })
+  next()
+})
+```
+```
+
+---
+
+### React Native - Mobile App Development
+
+#### React Native CLAUDE.md Mall
+
+```markdown
+# [App Namn] - React Native
+
+## Översikt
+[Beskriv mobile appen]
+
+## Teknisk Stack
+- **Framework**: React Native 0.73+ (ny arkitektur)
+- **Language**: TypeScript
+- **Navigation**: React Navigation 6
+- **State**: Zustand / Redux Toolkit
+- **Styling**: NativeWind (Tailwind for RN) eller Styled Components
+- **Forms**: React Hook Form
+- **API**: React Query (TanStack Query)
+- **Storage**: AsyncStorage / MMKV
+- **Testing**: Jest + React Native Testing Library
+
+## Projektstruktur
+
+```
+src/
+├── screens/            # Screen components
+│   ├── HomeScreen.tsx
+│   └── ProfileScreen.tsx
+├── components/
+│   ├── ui/            # Reusable UI components
+│   └── features/      # Feature-specific components
+├── navigation/
+│   ├── RootNavigator.tsx
+│   └── types.ts       # Navigation types
+├── hooks/             # Custom hooks
+├── stores/            # State management
+├── services/          # API services
+├── utils/
+└── types/
+```
+
+## React Native Specifika Regler
+
+### Platform Specific Code
+
+```typescript
+// ✅ Platform-specific styles
+import { Platform, StyleSheet } from 'react-native'
+
+const styles = StyleSheet.create({
+  container: {
+    padding: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOpacity: 0.1,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+})
+
+// ✅ Platform-specific files
+// Button.ios.tsx
+// Button.android.tsx
+// Button.tsx (fallback)
+```
+
+### Navigation med TypeScript
+
+```typescript
+// navigation/types.ts
+export type RootStackParamList = {
+  Home: undefined
+  Profile: { userId: string }
+  Settings: undefined
+}
+
+declare global {
+  namespace ReactNavigation {
+    interface RootParamList extends RootStackParamList {}
+  }
+}
+
+// Usage med type safety
+import { useNavigation } from '@react-navigation/native'
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack'
+
+type ProfileScreenProp = NativeStackNavigationProp<RootStackParamList, 'Profile'>
+
+function SomeComponent() {
+  const navigation = useNavigation<ProfileScreenProp>()
+
+  navigation.navigate('Profile', { userId: '123' }) // Type safe!
+}
+```
+
+### Performance Optimizations
+
+```typescript
+// ✅ FlatList för långa listor (INTE ScrollView)
+import { FlatList } from 'react-native'
+
+<FlatList
+  data={items}
+  renderItem={({ item }) => <ItemCard item={item} />}
+  keyExtractor={item => item.id}
+  // Performance props
+  removeClippedSubviews={true}
+  maxToRenderPerBatch={10}
+  windowSize={10}
+/>
+
+// ✅ Memoize expensive renders
+const ItemCard = React.memo(({ item }) => {
+  return <View>...</View>
+}, (prev, next) => prev.item.id === next.item.id)
+
+// ✅ useCallback för event handlers
+const handlePress = useCallback(() => {
+  // Handler logic
+}, [dependencies])
+```
+
+### AsyncStorage Pattern
+
+```typescript
+import AsyncStorage from '@react-native-async-storage/async-storage'
+
+export const storage = {
+  async getItem<T>(key: string): Promise<T | null> {
+    const value = await AsyncStorage.getItem(key)
+    return value ? JSON.parse(value) : null
+  },
+
+  async setItem<T>(key: string, value: T): Promise<void> {
+    await AsyncStorage.setItem(key, JSON.stringify(value))
+  },
+
+  async removeItem(key: string): Promise<void> {
+    await AsyncStorage.removeItem(key)
+  },
+}
+```
+
+## Testing
+
+### Component Tests
+```typescript
+import { render, fireEvent } from '@testing-library/react-native'
+
+describe('LoginScreen', () => {
+  it('calls onSubmit when form is valid', () => {
+    const onSubmit = jest.fn()
+    const { getByTestId } = render(<LoginForm onSubmit={onSubmit} />)
+
+    fireEvent.changeText(getByTestID('email-input'), 'test@example.com')
+    fireEvent.changeText(getByTestID('password-input'), 'password123')
+    fireEvent.press(getByTestId('submit-button'))
+
+    expect(onSubmit).toHaveBeenCalledWith({
+      email: 'test@example.com',
+      password: 'password123',
+    })
+  })
+})
+```
+
+## Vanliga Kommandon
+
+```bash
+# Development
+npm start                    # Start Metro bundler
+npm run ios                  # Run on iOS simulator
+npm run android              # Run on Android emulator
+
+# Production
+npm run build:ios            # Build iOS
+npm run build:android        # Build Android
+
+# Testing
+npm test                     # Run tests
+npm run test:watch           # Watch mode
+
+# Other
+npx react-native info        # Environment info
+npx react-native doctor      # Check setup
+```
+
+## iOS Specifikt
+
+```bash
+cd ios && pod install        # Install CocoaPods
+```
+
+## Android Specifikt
+
+```bash
+cd android && ./gradlew clean  # Clean build
+```
+
+## VIKTIGA REGLER
+
+### Styling
+- **ANVÄND** StyleSheet.create (optimized)
+- **UNDVIK** inline styles i loops
+- **ANVÄND** Flexbox (default)
+
+### Images
+```typescript
+// ✅ Local images
+import logo from './assets/logo.png'
+<Image source={logo} style={{ width: 100, height: 100 }} />
+
+// ✅ Remote images
+<Image
+  source={{ uri: 'https://...' }}
+  style={{ width: 100, height: 100 }}
+  resizeMode="cover"
+/>
+
+// ⚠️ Alltid specificera dimensions för remote images
+```
+
+### Safe Area
+```typescript
+import { SafeAreaView } from 'react-native-safe-area-context'
+
+// ✅ Använd för root screens
+<SafeAreaView style={{ flex: 1 }}>
+  <Screen />
+</SafeAreaView>
+```
+
+### Keyboard Handling
+```typescript
+import { KeyboardAvoidingView, Platform } from 'react-native'
+
+<KeyboardAvoidingView
+  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+  style={{ flex: 1 }}
+>
+  <FormInputs />
+</KeyboardAvoidingView>
+```
+
+## Common Pitfalls
+
+### ❌ Using ScrollView för långa listor
+```typescript
+// ❌ Dålig performance
+<ScrollView>
+  {items.map(item => <Item key={item.id} />)}
+</ScrollView>
+
+// ✅ Bra performance
+<FlatList
+  data={items}
+  renderItem={({ item }) => <Item item={item} />}
+/>
+```
+
+### ❌ Glömmer error boundaries
+```typescript
+// ✅ Wrap app i ErrorBoundary
+import { ErrorBoundary } from 'react-error-boundary'
+
+<ErrorBoundary fallback={<ErrorScreen />}>
+  <App />
+</ErrorBoundary>
+```
+
+### ❌ Blocking main thread
+```typescript
+// ❌ Heavy computation i component
+function Component() {
+  const result = heavyComputation() // Blocks UI!
+
+// ✅ Använd useMemo eller Web Workers
+const result = useMemo(() => heavyComputation(), [deps])
+```
+```
+
+---
+
+### Python FastAPI - Modern Python Backend
+
+#### FastAPI CLAUDE.md Mall
+
+```markdown
+# [API Namn] - FastAPI
+
+## Översikt
+[Beskriv API:t]
+
+## Teknisk Stack
+- **Framework**: FastAPI 0.110+
+- **Language**: Python 3.11+
+- **Database**: PostgreSQL med SQLAlchemy 2.0
+- **Migrations**: Alembic
+- **Validation**: Pydantic V2
+- **Auth**: python-jose (JWT)
+- **Testing**: pytest + httpx
+
+## Projektstruktur
+
+```
+app/
+├── api/
+│   └── v1/
+│       ├── endpoints/
+│       │   ├── auth.py
+│       │   └── users.py
+│       └── router.py
+├── core/
+│   ├── config.py        # Settings
+│   ├── security.py      # Auth utilities
+│   └── deps.py          # Dependencies
+├── models/              # SQLAlchemy models
+│   └── user.py
+├── schemas/             # Pydantic schemas
+│   └── user.py
+├── services/            # Business logic
+│   └── user_service.py
+├── db/
+│   ├── base.py
+│   └── session.py
+├── tests/
+│   ├── test_auth.py
+│   └── test_users.py
+└── main.py
+```
+
+## FastAPI Patterns
+
+### Endpoint Structure
+
+```python
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.core.deps import get_db, get_current_user
+from app.schemas.user import UserCreate, UserResponse
+from app.services import user_service
+
+router = APIRouter(prefix="/users", tags=["users"])
+
+@router.post("/", response_model=UserResponse, status_code=201)
+async def create_user(
+    user_in: UserCreate,
+    db: Session = Depends(get_db),
+) -> UserResponse:
+    """
+    Create new user.
+
+    - **email**: Valid email address
+    - **password**: Minimum 8 characters
+    """
+    # Check if user exists
+    if await user_service.get_by_email(db, email=user_in.email):
+        raise HTTPException(
+            status_code=400,
+            detail="User with this email already exists",
+        )
+
+    # Create user
+    user = await user_service.create(db, user_in=user_in)
+    return user
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_info(
+    current_user = Depends(get_current_user),
+) -> UserResponse:
+    """Get current authenticated user."""
+    return current_user
+```
+
+### Pydantic Schemas
+
+```python
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
+
+class UserBase(BaseModel):
+    email: EmailStr
+    name: str = Field(..., min_length=2, max_length=100)
+
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=8)
+
+class UserResponse(UserBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+class UserInDB(UserResponse):
+    hashed_password: str
+```
+
+### SQLAlchemy Models
+
+```python
+from sqlalchemy import Boolean, Column, Integer, String, DateTime
+from sqlalchemy.sql import func
+
+from app.db.base import Base
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+```
+
+### Dependency Injection
+
+```python
+# core/deps.py
+from typing import Generator
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import jwt, JWTError
+from sqlalchemy.orm import Session
+
+from app.core.config import settings
+from app.db.session import SessionLocal
+from app.services import user_service
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+def get_db() -> Generator:
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+async def get_current_user(
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme),
+):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+        )
+        user_id: int = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    user = await user_service.get(db, id=user_id)
+    if user is None:
+        raise credentials_exception
+
+    return user
+```
+
+## Testing med pytest
+
+```python
+# tests/conftest.py
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from app.main import app
+from app.core.deps import get_db
+from app.db.base import Base
+
+SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+TestingSessionLocal = sessionmaker(bind=engine)
+
+@pytest.fixture
+def db():
+    Base.metadata.create_all(bind=engine)
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+        Base.metadata.drop_all(bind=engine)
+
+@pytest.fixture
+def client(db):
+    def override_get_db():
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+# tests/test_users.py
+def test_create_user(client):
+    response = client.post(
+        "/api/v1/users/",
+        json={
+            "email": "test@example.com",
+            "password": "password123",
+            "name": "Test User",
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["email"] == "test@example.com"
+    assert "password" not in data
+```
+
+## Configuration
+
+```python
+# core/config.py
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    PROJECT_NAME: str = "My API"
+    VERSION: str = "1.0.0"
+    API_V1_PREFIX: str = "/api/v1"
+
+    SECRET_KEY: str
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+    DATABASE_URL: str
+
+    # CORS
+    BACKEND_CORS_ORIGINS: list[str] = []
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+
+settings = Settings()
+```
+
+## Vanliga Kommandon
+
+```bash
+# Development
+uvicorn app.main:app --reload
+
+# Testing
+pytest                       # All tests
+pytest -v                    # Verbose
+pytest --cov=app            # Med coverage
+
+# Database
+alembic revision --autogenerate -m "message"
+alembic upgrade head
+alembic downgrade -1
+
+# Linting
+ruff check .
+mypy app/
+```
+
+## SÄKERHETSREGLER
+
+### Password Hashing
+```python
+from passlib.context import CryptContext
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_context.verify(plain, hashed)
+```
+
+### CORS
+```python
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+```
+
+### Rate Limiting
+```python
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
+
+@router.post("/login")
+@limiter.limit("5/minute")
+async def login(...):
+    ...
+```
+```
+
+---
+
+## Sammanfattning: Teknologi-Specifika Nycklar
+
+### Generella Principer (Alla Teknologier)
+
+1. **CLAUDE.md är Kritisk**
+   - Dokumentera tech-specifika patterns
+   - Inkludera vanliga kommandon
+   - Lista prohibited practices
+
+2. **Testing är Inte Optional**
+   - TDD workflow för alla teknologier
+   - Unit + Integration tests
+   - CI/CD integration
+
+3. **Type Safety**
+   - TypeScript för JS/TS
+   - Type hints för Python
+   - Proper validation överallt
+
+4. **Security First**
+   - Input validation
+   - Authentication/Authorization
+   - Secrets management
+
+5. **Performance Awareness**
+   - Optimera från början
+   - Profiling tools
+   - Load testing
+
+### Tech-Specific Checklists
+
+#### ✅ Next.js Checklist
+- [ ] Använd Server Components by default
+- [ ] Server Actions för mutations
+- [ ] Proper caching strategy
+- [ ] Metadata för SEO
+- [ ] Image optimization
+
+#### ✅ Vue 3 Checklist
+- [ ] Composition API (inte Options)
+- [ ] `<script setup>` syntax
+- [ ] Proper reactivity (ref/reactive)
+- [ ] Pinia för state
+- [ ] Type safety med TypeScript
+
+#### ✅ Express Checklist
+- [ ] Controller → Service → DB pattern
+- [ ] Zod validation på all input
+- [ ] Proper error handling middleware
+- [ ] JWT authentication
+- [ ] Rate limiting
+
+#### ✅ React Native Checklist
+- [ ] FlatList för listor (inte ScrollView)
+- [ ] Platform-specific code när behövs
+- [ ] SafeAreaView för screens
+- [ ] Memoization för performance
+- [ ] Type-safe navigation
+
+#### ✅ FastAPI Checklist
+- [ ] Pydantic för validation
+- [ ] Dependency injection
+- [ ] Async endpoints
+- [ ] Proper response models
+- [ ] OpenAPI documentation
+
+---
+
+### Hur Man Använder Dessa Teknologi-Guider
+
+**Steg 1: Välj Din Teknologi**
+Kopiera relevant CLAUDE.md mall till ditt projekt
+
+**Steg 2: Anpassa**
+Justera mallen för dina specifika behov
+
+**Steg 3: Kommunicera Till Claude**
+```
+Du: "Läs CLAUDE.md noggrant. Detta är ett [Next.js/Vue/Express/etc] projekt.
+     Följ ALLA konventioner som dokumenterats.
+     Bekräfta att du förstår projektets struktur och regler."
+```
+
+**Steg 4: Iterera**
+Uppdatera CLAUDE.md när du upptäcker nya patterns eller best practices
+
+---
+
 ## Sammanfattning: Nycklar till Framgång
 
 ### De 10 Viktigaste Principerna
