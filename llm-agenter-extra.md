@@ -6,34 +6,51 @@
 
 ## 🛠️ Plattformsjämförelse
 
-### Fullständig tabell: Ramverk och Verktyg
+### Fullständig tabell: Ramverk och Verktyg (November 2025)
 
-| Plattform | Typ | Pris | Svårighet | Bäst för | Begränsningar |
-|-----------|-----|------|-----------|----------|---------------|
-| **LangChain** | Framework | Free | Medium | RAG, Chains, Basic agents | Brant lärkurva, verbose |
-| **LangGraph** | Framework | Free | Hög | State machines, Komplexa workflows | Kräver LangChain |
-| **AutoGen** | Framework | Free | Medium | Multi-agent conversations | Microsoft-fokuserad |
-| **CrewAI** | Framework | Free | Låg-Medium | Role-based automation | Mindre flexibelt |
-| **OpenAI Assistants** | API | Usage-based | Låg | Enkel agent-bygge | API-lock-in |
-| **Claude (Anthropic)** | API | Usage-based | Låg | Kvalitet, lång context | API-lock-in |
-| **Google Gemini** | API | Usage-based | Låg-Medium | Multimodal | Begränsad tillgänglighet |
-| **n8n** | No-code | €20/mån | Låg | Workflow automation | Mindre kontroll |
-| **Zapier Central** | No-code | $20-240/mån | Låg | Quick integrations | Dyrt för komplext |
-| **Make** | No-code | €9-299/mån | Låg | Visual workflows | Kan bli dyrt |
-| **Flowise** | Low-code | Free (self-host) | Låg | LangChain UI | Begränsad till LangChain |
-| **LangFlow** | Low-code | Free | Låg | Visual agent builder | Under utveckling |
-| **Haystack** | Framework | Free | Medium | RAG pipelines | Specifik för RAG |
-| **LlamaIndex** | Framework | Free | Medium | Data indexing | Fokus på retrieval |
-| **DSPy** | Framework | Free | Hög | Prompt optimization | Kräver träning |
-| **Semantic Kernel** | Framework | Free | Medium | Microsoft stack | .NET-fokuserad |
-| **Langfuse** | Observability | Free-$99/mån | Låg | Tracing & analytics | Endast monitoring |
-| **Vercel AI SDK** | Framework | Free | Låg-Medium | Next.js integration | JavaScript-fokus |
-| **LiteLLM** | Proxy | Free (self-host) | Låg | Unified API | Proxy layer only |
+| Plattform | Typ | Pris | Svårighet | Bäst för | Status 2025 |
+|-----------|-----|------|-----------|----------|-------------|
+| **LangChain 1.0** | Framework | Free | Medium | RAG, Chains, Agents | ✅ Stabil! Ingen breaking changes till 2.0 |
+| **LangGraph 1.0** | Framework | Free | Hög | Durable agents, State machines | ✅ Production-ready! |
+| **LangSmith Deployment** | Platform | Varies | Medium | Deploy LangGraph agents | 🆕 Tidigare "LangGraph Platform" |
+| **Microsoft Agent Framework** | Framework | Free | Medium | Enterprise multi-agent | 🆕 Public Preview Nov 2025 |
+| **Magentic-One** | Multi-Agent | Open-source | Hög | Orchestrated 4-agent system | 🆕 Nov 2025 - Microsoft Research |
+| **AutoGen** | Framework | Free | Medium | Multi-agent conversations | ⚠️ Maintenance mode (use Agent Framework) |
+| **CrewAI** | Framework | Free | Låg-Medium | Role-based automation | ✅ Aktiv utveckling 2025 |
+| **Claude Agent SDK** | SDK | Usage-based | Medium | Agentic coding, Computer Use | 🆕 Tidigare "Claude Code SDK" |
+| **OpenAI Assistants** | API | Usage-based | Låg | Enkel agent-bygge | ✅ Structured outputs support |
+| **Google Gemini 2.0** | API | Usage-based | Låg | Multimodal, Coding | 🆕 Flash allmänt tillgänglig Nov 2025 |
+| **Vercel AI SDK 6** | Framework | Free | Låg-Medium | Next.js, Agent abstraction | 🆕 Beta Oktober 2025 |
+| **n8n** | No-code | €20/mån | Låg | Workflow automation | ✅ Stabil |
+| **Zapier Central** | No-code | $20-240/mån | Låg | Quick integrations | ✅ Stabil |
+| **Make** | No-code | €9-299/mån | Låg | Visual workflows | ✅ Stabil |
+| **Flowise** | Low-code | Free (self-host) | Låg | LangChain UI | ✅ Stabil |
+| **LangFlow** | Low-code | Free | Låg | Visual agent builder | ✅ Aktiv utveckling |
+| **Haystack** | Framework | Free | Medium | RAG pipelines | ✅ Stabil |
+| **LlamaIndex** | Framework | Free | Medium | Data indexing & retrieval | ✅ Stabil |
+| **DSPy 2.5+** | Framework | Free | Hög | Prompt optimization (GEPA) | ✅ Beyond 2.0, SOTA optimizers |
+| **Semantic Kernel** | Framework | Free | Medium | Microsoft .NET stack | ✅ Magentic support |
+| **Langfuse** | Observability | Free-$99/mån | Låg | Open-source tracing | ⭐ 50K events/mån gratis |
+| **LangSmith** | Observability | $Free-Enterprise | Låg-Medium | LangChain-native tracing | ⭐ 5K traces/mån gratis |
+| **Braintrust** | Evaluation | Free-Enterprise | Medium | LLM eval & monitoring | ⭐ Bäst för TypeScript/JS |
+| **LiteLLM** | Proxy | Free (self-host) | Låg | Unified multi-provider API | ✅ Load balancing |
+| **Amazon Nova** | Embeddings | Usage-based | Låg | Multimodal embeddings | 🆕 Text, video, audio support |
+| **Devtron 2.0** | DevOps | Free-Paid | Medium | Agentic SRE för Kubernetes | 🆕 Nov 2025 |
 
-**🆕 Nytt Q1 2025:**
-- **Langfuse**: Bästa open-source observability
-- **Vercel AI SDK**: Standard för Next.js AI apps
-- **LiteLLM**: Load balancing mellan LLM-providers
+**🔥 Hot Picks November 2025:**
+- **Production Agents**: LangGraph 1.0 + Claude Sonnet 4.5 + Langfuse
+- **Rapid Prototyping**: Flowise + GPT-4o mini + gratis tier
+- **Enterprise**: Microsoft Agent Framework + Azure OpenAI
+- **Multi-Agent**: Magentic-One (open-source) eller CrewAI (enklare)
+- **JavaScript**: Vercel AI SDK 6 + Next.js + Braintrust
+- **Observability**: Langfuse (budget) eller LangSmith (LangChain-heavy)
+
+**⚠️ Stora Förändringar 2025:**
+1. **AutoGen** → maintenance mode, ersätts av **Microsoft Agent Framework**
+2. **LangGraph Platform** → omdöpt till **LangSmith Deployment**
+3. **Claude Code** → nu **Claude Agent SDK** med bredare capabilities
+4. **LangGraph 1.0** är första stabila durable agent framework
+5. **Structured Outputs** nu standard (ej function calling)
 
 ---
 
@@ -76,18 +93,36 @@ Kan du koda?
 
 ### Cost Comparison (per 1M tokens) - Uppdaterad November 2025
 
-| LLM | Input | Output | Context | Sweet spot |
-|-----|-------|--------|---------|------------|
-| **GPT-4o** | $2.50 | $10 | 128K | Balans pris/kvalitet |
-| **GPT-4 Turbo** | $10 | $30 | 128K | Högsta kvalitet |
-| **GPT-4o mini** | $0.15 | $0.60 | 128K | Bulk operations |
-| **Claude 3.5 Sonnet** | $3 | $15 | 200K | Bäst-i-klass kvalitet |
-| **Claude 3 Opus** | $15 | $75 | 200K | Extremt komplexa uppgifter |
-| **Claude 3 Haiku** | $0.25 | $1.25 | 200K | Hög volym, snabb |
-| **Gemini 1.5 Pro** | $1.25 | $5 | 2M | Enorm context window |
-| **Gemini 1.5 Flash** | $0.075 | $0.30 | 1M | Snabbaste/billigaste |
+| LLM | Input | Output | Context | Sweet spot | Nytt 2025 |
+|-----|-------|--------|---------|------------|-----------|
+| **GPT-4o** | $2.50 | $10 | 128K | Balans pris/kvalitet | 83% prisfall! |
+| **GPT-4o mini** | $0.15 | $0.60 | 128K | Bulk operations | Bäst för höga volymer |
+| **GPT-4 Turbo** | $10 | $30 | 128K | Extremt komplexa tasks | Legacy, använd sällan |
+| **Claude Sonnet 4.5** | $3 | $15 | 200K | Bäst för agents | "Världens bästa agent-modell" |
+| **Claude Sonnet 3.7** | $3 | $15 | 200K | Inkl. thinking tokens | Stabil production |
+| **Claude Haiku 4.5** | $0.8 | $4 | 200K | 90% av Sonnet, 2x snabbare | NYHET Okt 2025 |
+| **Claude Opus 3** | $15 | $75 | 200K | Extremt komplexa uppgifter | Premium tier |
+| **Gemini 2.0 Flash** | $0.35 | $1.50 | 1M | Production-ready | NYHET Nov 2025 |
+| **Gemini 2.0 Flash-Lite** | $0.20 | $0.80 | 1M | Billigaste multimodal | Public Preview |
+| **Gemini 2.0 Pro** | $1.25 | $5 | 2M | Coding & komplex reasoning | Experimental |
+| **Gemini 1.5 Flash** | $0.075 | $0.30 | 1M | Snabbaste/billigaste | Fortfarande konkurrenskraftig |
 
-**Nytt Q1 2025:** OpenAI GPT-4o och Gemini 1.5 erbjuder bästa pris/prestanda-balansen för de flesta use cases.
+**🔥 Hot Picks November 2025:**
+- **Prototyping**: GPT-4o mini ($0.15/$0.60) eller Gemini 2.0 Flash-Lite
+- **Production Agents**: Claude Sonnet 4.5 ($3/$15) eller Claude Haiku 4.5 för cost/performance
+- **High Volume**: Gemini 2.0 Flash ($0.35/$1.50) - bra balans mellan kostnad och kvalitet
+- **Max Quality**: Claude Opus 3 ($15/$75) när kostnad inte spelar roll
+
+**💡 Cost Optimization Tips:**
+- **Batch API**: 50% rabatt på alla OpenAI-modeller (asynkrona requests)
+- **Prompt Caching**: 90% besparing på input tokens (Claude, OpenAI)
+- **Model Routing**: Start billigt (mini/Haiku), escalera till dyrare vid behov
+- **Context Optimization**: Använd bara nödvändig kontext
+
+**📊 Prisfall sedan 2024:**
+- GPT-4 output: 83% billigare ($60 → $10 per 1M tokens)
+- GPT-4 input: 90% billigare ($30 → $2.50 per 1M tokens)
+- Kombinerat med prompt caching: **Upp till 95% totalbesparing** för RAG use cases!
 
 ---
 

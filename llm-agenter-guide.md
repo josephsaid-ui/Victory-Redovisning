@@ -166,37 +166,151 @@ Välj din startpunkt:
 
 ---
 
-## 🆕 Vad är nytt 2025?
+## 🆕 Vad är nytt November 2025?
 
-### Stora förändringar i AI-agent landskapet (baserat på kunskapsläge januari 2025):
+### Massiva förändringar i AI-agent landskapet
 
-**🚀 Nya LLM:er med bättre pris/prestanda:**
-- **GPT-4o**: Ersätter GPT-4 Turbo som standard (75% billigare)
-- **Claude 3.5 Sonnet**: Bäst-i-klass kvalitet för agents
-- **Gemini 1.5 Pro/Flash**: Extremt långa context windows (upp till 2M tokens)
+**🚀 Nya LLM:er med dramatiska prisfall:**
 
-**🔧 Nya tekniker:**
-- **Structured Outputs**: Garanterad schema-compliance från OpenAI/Anthropic
-- **Prompt Caching**: 90% kostnadsminskning för RAG (Anthropic, OpenAI)
-- **Native Multi-step Reasoning**: O1-modeller för komplex planering
+*OpenAI (November 2025):*
+- **GPT-4o**: $2.50/$10 per 1M tokens (input/output) - 83% prisfall sedan lansering!
+- **GPT-4o mini**: $0.15/$0.60 - perfekt för bulk operations
+- **GPT-4 Turbo**: $10/$30 (används nu endast för extremt komplexa uppgifter)
+- **Batch API**: 50% rabatt för asynkrona requests
 
-**🛠️ Nya verktyg:**
-- **Langfuse**: Open-source observability platform
-- **LiteLLM**: Load balancing och unified API
-- **Vercel AI SDK**: Standard för Next.js integration
+*Anthropic (November 2025):*
+- **Claude Sonnet 4.5**: $3/$15 - "Bästa modellen i världen för agents" enligt Anthropic
+- **Claude Haiku 4.5**: 90% av Sonnet 4.5:s prestanda, 2x snabbare, 3x billigare
+- **Claude 3.7 Sonnet**: $3/$15 - inkluderar thinking tokens i priset
+- Konsekvent prissättning genom alla Sonnet-versioner
 
-**📊 Best Practices uppdaterade:**
-- Använd structured outputs istället för function calling
-- Implementera prompt caching för all RAG
-- Model routing (billig modell först, escalera vid behov)
-- Observability är inte längre optional
+*Google (November 2025):*
+- **Gemini 2.0 Flash**: $0.35 text input, $1.50 text output - allmänt tillgänglig
+- **Gemini 2.0 Flash-Lite**: Ännu billigare, public preview
+- **Gemini 2.0 Pro**: Experimental, för coding och komplexa prompts
+- Förenklad prissättning - ingen skillnad mellan short/long context
 
-**💰 Kostnadsminskning:**
-- Prompt caching: -90% för RAG use cases
-- GPT-4o vs GPT-4: -75% kostnad
-- Gemini Flash: Billigaste option för hög volym
+**🛠️ Revolutionerande nya verktyg och plattformar:**
 
-**Se detaljerad breakdown i [Nivå 5](./llm-agenter-niva5.md#-best-practices-q1-2025) och [FAQ](./llm-agenter-extra.md#-vanliga-frågor-faq).**
+*LangChain Ekosystemet (Oktober-November 2025):*
+- **LangGraph 1.0**: Första stabila release av durable agent framework!
+- **LangGraph Platform** → omdöpt till **LangSmith Deployment**
+- **LangGraph Studio v2**: Kör lokalt utan desktop app
+- **Node caching**, **deferred nodes**, **pre/post model hooks**
+- Open Agent Platform - no-code agent builder
+
+*Microsoft (November 2025):*
+- **Magentic-One**: Multi-agent system med Orchestrator + 4 specialiserade agenter
+- **Microsoft Agent Framework**: Public preview med Agent2Agent (A2A) protokoll
+- **AutoGen → maintenance mode**: Microsoft fokuserar nu på Agent Framework
+
+*Anthropic (2025):*
+- **Claude Agent SDK**: Tidigare "Claude Code SDK", bredare capabilities
+- **Extended Thinking Mode**: "think" → "ultrathink" för ökad reasoning budget
+- **CLAUDE.md**: Automatisk kontext-fil för repository etiquette
+- **Computer Use**: Agenter kan kontrollera datorer och browsers
+
+*Vercel (Oktober 2025):*
+- **AI SDK 6 Beta**: Agent abstraction layer, tool execution approval
+- **Vercel Marketplace Agents**: CodeRabbit, Corridor, Sourcery
+- **Workflow Support**: Durable workflows med retries och observability
+- **Python SDK**: För FastAPI/Flask
+
+*Deployment & Infrastructure:*
+- **Docker Desktop 4.50**: Direkt Kubernetes deployment
+- **Google Agent Sandbox**: Sub-second latency (90% förbättring)
+- **Devtron 2.0**: "Agentic SRE" för Kubernetes
+
+*Embedding Models:*
+- **Amazon Nova Multimodal Embeddings**: Text, docs, images, video, audio i en modell
+- Stöd för automatic segmentation (chunking)
+
+**🔧 Banbrytande tekniker:**
+
+*Prompt Caching (2025 Standard):*
+- **90% kostnadsbesparing** på input tokens
+- **85% latency reduction** (exempel: 11.5s → 2.4s)
+- **Cache TTL**: 5 minuter (standard) eller 1 timme
+- Minsta storlek: Claude 3.5 (1024 tokens), Haiku 4.5 (4096 tokens)
+- Perfekt för RAG, long-context applications
+
+*Structured Outputs:*
+- **OpenAI** leder med native Pydantic-support och 100% schema-compliance
+- **Anthropic**: Kräver "tool call trick" för reliability
+- **Bättre än function calling**: Garanterad type safety
+
+*RAG Evolution:*
+- **Agentic Chunking**: LLM bestämmer chunking-strategi per dokument
+- **Semantic Chunking**: Gruppering baserad på embedding similarity
+- **GraphRAG**: 99% precision med knowledge graphs
+- **Hybrid Search**: BM25 + semantic search = standard 2025
+
+**📊 Best Practices Revolution:**
+
+1. **Structured Outputs >> Function Calling**: OpenAI's structured outputs garanterar schema
+2. **Prompt Caching är Must-Have**: 90% saving för all RAG
+3. **Model Routing**: Billig modell först (GPT-4o-mini), escalera till GPT-4o/Claude vid behov
+4. **Observability inte optional**: LangSmith, Langfuse eller Braintrust krävs i production
+5. **Agentic Chunking**: Låt LLM välja chunking-strategi
+6. **Security-First**: Prompt injection fortfarande olöst problem
+
+**🔐 Säkerhetslandskapet 2025:**
+
+*Major Threats:*
+- **Prompt Injection**: "Frontier, unsolved security problem" enligt OpenAI CISO
+- **OpenAI Guardrails**: Bypassade inom veckor efter October 2025 release
+- **EchoGram Attack** (November 2025): "=coffee" kan bypassa guardrails
+- **Indirect Prompt Injection**: Agenter luras via webb-innehåll
+- **Multimodal Injection**: Emoji-sekvenser och rebus puzzles
+
+*Defense Evolution:*
+- **AWS Bedrock Guardrails** (Januari 2025): Prompt attack filter
+- **Output-Level Controls**: Shift från input → output filtering
+- **Layered Defenses**: Flera säkerhetslager krävs
+- **Human-in-the-Loop**: Tool execution approval (Vercel AI SDK 6)
+
+**🏗️ Production Patterns 2025:**
+
+*Deployment:*
+- Kubernetes standard för agent workloads
+- Docker containerization obligatoriskt
+- Prometheus + Loki för monitoring
+- Sub-second cold starts med Google Agent Sandbox
+
+*Observability Stack:*
+- **LangSmith**: Djup LangChain integration, Python-fokus
+- **Langfuse**: Open-source, 50K events/mån gratis
+- **Braintrust**: Bäst för TypeScript/JavaScript, unified platform
+- OpenTelemetry för tracing
+
+*Cost Optimization:*
+- Fallback chains: Billig → dyr escalering
+- Workflow guardrails: Max retries, timeout thresholds
+- Batch processing: 50% rabatt
+- Intelligent routing baserat på task complexity
+
+**💰 Prisrevolution 2025:**
+
+Sedan 2024 har vi sett:
+- **83% prisfall** på GPT-4 output tokens
+- **90% prisfall** på GPT-4 input tokens
+- **75% billigare** GPT-4o vs ursprungliga GPT-4
+- **90% besparing** med prompt caching
+- **50% rabatt** med Batch API
+
+**Resultat:** Enterprise AI-agenter är nu 5-10x billigare att köra än för ett år sedan!
+
+**🎯 Vad betyder detta för dig?**
+
+- **Nybörjare**: Start med GPT-4o mini eller Claude Haiku 4.5 för lärande
+- **Prototyping**: Använd Chroma + Langfuse + gratis tiers
+- **Production**: LangGraph 1.0 + Prompt Caching + Kubernetes
+- **Enterprise**: Multi-model routing + Observability + Security layers
+
+**Se detaljerad implementation i:**
+- [Nivå 5 - Production Best Practices](./llm-agenter-niva5.md#-best-practices-q1-2025)
+- [FAQ - 2025 Updates](./llm-agenter-extra.md#-vanliga-frågor-faq)
+- [Plattformsjämförelse](./llm-agenter-extra.md#plattformsjämförelse)
 
 ---
 
