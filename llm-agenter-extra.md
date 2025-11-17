@@ -307,6 +307,165 @@ A: Räkna:
 
 ---
 
+### 🆕 November 2025 Updates
+
+**Q: Vad är Claude Agent SDK och hur använder jag det?**
+A: Claude Agent SDK (tidigare "Claude Code SDK") är Anthropics officiella SDK för att bygga agenter med Claude. Nytt November 2025:
+- **CLAUDE.md-filer**: Lägg till `.claude/CLAUDE.md` i ditt repo - Claude läser automatiskt detta som kontext
+- **Extended Thinking Mode**: Använd "think", "think hard", "think harder", eller "ultrathink" för olika reasoning-nivåer
+- **Computer Use**: Agenter kan kontrollera browsers och datorer
+- Bäst för agentic coding, test-driven development, och deep research
+
+Exempel CLAUDE.md:
+```markdown
+# Repository Etiquette
+
+- Använd pytest för alla tester
+- Skriv docstrings för alla funktioner
+- Max 80 tecken per rad
+- Kör `ruff` före commit
+```
+
+**Q: Vilken modell ska jag välja November 2025: GPT-4o, Claude Sonnet 4.5, eller Gemini 2.0?**
+A: Beror på use case:
+- **Agents & Agentic Coding**: Claude Sonnet 4.5 ($3/$15) - "världens bästa agent-modell"
+- **Cost/Performance Balance**: Claude Haiku 4.5 ($0.8/$4) - 90% av Sonnet, 2x snabbare, 3x billigare
+- **Budget/High Volume**: Gemini 2.0 Flash ($0.35/$1.50) eller GPT-4o mini ($0.15/$0.60)
+- **Max Context (2M tokens)**: Gemini 2.0 Pro
+- **Batch Processing**: GPT-4o med Batch API (50% rabatt)
+
+**Q: Hur mycket sparar jag VERKLIGEN med prompt caching?**
+A: Konkreta exempel från November 2025:
+- **RAG med 10K kontext**: $0.30 → $0.03 (90% besparing) per request
+- **100K token bok**: Latency 11.5s → 2.4s (79% snabbare)
+- **Cache TTL**: 5 minuter standard, 1 timme premium
+- **Minimikrav**: Claude 3.5 (1024 tokens), Haiku 4.5 (4096 tokens)
+
+Tips: Cache system prompts, dokument, och tool definitions - inte dynamiskt innehåll!
+
+**Q: AutoGen är i maintenance mode - vad ska jag använda istället?**
+A: Microsoft fokuserar nu på **Microsoft Agent Framework** (public preview November 2025):
+- **Magentic-One**: Open-source multi-agent system med Orchestrator + 4 specialagenter
+- **Agent2Agent (A2A) protokoll**: Agents kommunicerar mellan olika runtimes
+- **Semantic Kernel**: Fortsätter utvecklas, har Magentic-support
+- **Alternativ**: CrewAI (enklare), LangGraph 1.0 (mer kontroll)
+
+AutoGen funkar fortfarande men får inga nya features.
+
+**Q: Är prompt injection verkligen olösligt? Hur skyddar jag mig November 2025?**
+A: Tyvärr ja - OpenAI CISO kallar det "frontier, unsolved security problem". Senaste hot:
+- **EchoGram** (Nov 2025): Enkel string som "=coffee" kan bypassa guardrails
+- **OpenAI Guardrails**: Bypassade inom veckor efter Oct 2025 release
+- **Multimodal Injection**: Emoji-sekvenser och rebus puzzles
+
+**Best Defenses 2025:**
+1. **Output-Level Controls**: Filtrera outputs, inte bara inputs
+2. **Layered Defense**: Flera säkerhetslager (AWS Bedrock Guardrails, custom filters)
+3. **Human-in-the-Loop**: Tool execution approval (Vercel AI SDK 6)
+4. **Structured Testing**: Test alla agents med adversarial inputs
+5. **Never Trust Agent Output**: Validera allt innan execution
+
+**Q: LangGraph Platform vs LangSmith Deployment - vad hände?**
+A: Oktober 2025: **LangGraph Platform omdöpt till LangSmith Deployment**
+- Samma funktionalitet: Deploy long-running, stateful agents
+- Integrerat i LangSmith för unified observability + deployment
+- Stöd för Cloud, Hybrid, och Self-Hosted
+- LangGraph 1.0 är stabilt - inga breaking changes till 2.0
+
+**Q: Structured Outputs vs Function Calling - vilken ska jag använda 2025?**
+A: **Structured Outputs vinner**:
+- OpenAI: Native Pydantic-support, 100% schema-compliance
+- Anthropic: Kräver "tool call trick", ~14-20% failure rate annars
+- Garanterad type safety vs "best effort" function calling
+
+Använd Function Calling endast för legacy-kod. Nya projekt: structured outputs.
+
+**Q: Vilken vector database ska jag välja November 2025?**
+A: Migration pattern: **Chroma → Weaviate → Pinecone**
+- **Prototyping**: Chroma (gratis, enkelt, LangChain-integration)
+- **Medium Scale**: Weaviate (hybrid search, multimodal, open-source option)
+- **Production/Scale**: Pinecone (sub-50ms vid 1 billion vectors, managed, pricey)
+
+**Benchmarks (1B vectors):**
+- Pinecone p99: ~47ms
+- Weaviate p99: ~123ms
+- Chroma: Max ~10M vectors praktiskt
+
+**Q: Vad är agentic chunking och ska jag använda det?**
+A: **Agentic chunking** = LLM bestämmer chunking-strategi per dokument:
+- Markdown file → split by headers
+- Dense document → propositional chunking
+- Code file → split by functions
+
+**Bättre än fixed chunking** eftersom olika dokument behöver olika strategier.
+
+**Alternativ 2025:**
+- **Semantic Chunking**: Gruppera baserad på embedding similarity
+- **Amazon Nova**: Automatic segmentation in multimodal embeddings
+
+**Q: Ska jag deploya på Kubernetes eller köra serverless?**
+A: **Kubernetes vinner för production agents 2025:**
+- Docker Desktop 4.50: Direct K8s deployment
+- Google Agent Sandbox: Sub-second latency (90% förbättring)
+- Devtron 2.0: "Agentic SRE" - AI managerar K8s för dig
+- Monitoring: Prometheus + Loki standard
+
+**Serverless** funkar för:
+- Låg volym (<1000 requests/dag)
+- Sporadisk användning
+- Quick prototypes
+
+**Q: LangSmith vs Langfuse vs Braintrust för observability?**
+A: **November 2025 recommendations:**
+- **LangSmith**: Bäst om du är all-in på LangChain, djup integration, 5K traces/mån gratis
+- **Langfuse**: Open-source, 50K events/mån gratis, budget-friendly, self-hostable
+- **Braintrust**: Bäst för TypeScript/JavaScript, unified eval+monitoring, enterprise features
+
+**Alla tre** stödjer multi-step agent tracing med nested spans (LangGraph, AutoGen).
+
+**Q: Hur gör jag model routing för cost optimization?**
+A: **Fallback chain pattern 2025:**
+```python
+def intelligent_routing(query: str, complexity: str):
+    # Level 1: Billigaste
+    if complexity == "simple":
+        return gpt_4o_mini.invoke(query)  # $0.15/$0.60
+
+    # Level 2: Balanced
+    elif complexity == "medium":
+        try:
+            return claude_haiku_45.invoke(query)  # $0.8/$4
+        except Exception:
+            return gpt_4o.invoke(query)  # Fallback
+
+    # Level 3: Max quality
+    else:
+        return claude_sonnet_45.invoke(query)  # $3/$15
+```
+
+**Spara 60-80%** genom att endast använda dyra modeller när nödvändigt.
+
+**Q: Vad är Vercel AI SDK 6 och varför pratar alla om det?**
+A: **Vercel AI SDK 6 Beta** (Oktober 2025):
+- **Agent Abstraction Layer**: Definiera agents en gång, återanvänd överallt
+- **Tool Execution Approval**: Human-in-the-loop för säkerhet
+- **Workflow Support**: Durable workflows med retries (like Temporal)
+- **Python SDK**: Nu även FastAPI/Flask (tidigare bara Next.js)
+- **Marketplace Agents**: Installera CodeRabbit, Corridor, Sourcery m.fl.
+
+**Perfect för** TypeScript/JavaScript developers som vill ha Next.js-first agentic AI.
+
+**Q: Vad är skillnaden mellan Gemini 1.5 och 2.0?**
+A: **Gemini 2.0** (November 2025):
+- **Flash**: $0.35/$1.50 - allmänt tillgänglig, production-ready
+- **Flash-Lite**: $0.20/$0.80 - billigaste multimodal (public preview)
+- **Pro**: $1.25/$5 - bäst för coding och complex reasoning (experimental)
+- **Förenklad pricing**: Ingen short vs long context-skillnad längre
+
+**Gemini 1.5 Flash** ($0.075/$0.30) fortfarande billigast för höga volymer!
+
+---
+
 ## 📖 Ordlista (A-Ö)
 
 **Agent**: AI-system som autonomt kan utföra uppgifter med verktyg
