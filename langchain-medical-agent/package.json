@@ -1,0 +1,51 @@
+{
+  "name": "langchain-medical-agent",
+  "version": "1.0.0",
+  "description": "LangChain-baserad medicinsk agent för ögonsekreterare",
+  "main": "src/agent/medical-agent.ts",
+  "scripts": {
+    "dev": "tsx watch src/agent/medical-agent.ts",
+    "build": "tsc",
+    "example:basic": "tsx examples/basic-example.ts",
+    "example:streaming": "tsx examples/streaming-example.ts",
+    "example:integration": "tsx examples/integration-example.ts",
+    "test": "vitest",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.0",
+    "@langchain/anthropic": "^0.3.0",
+    "@langchain/core": "^0.3.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "langchain": "^0.3.0",
+    "llamaindex": "^0.6.0",
+    "ws": "^8.18.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.10",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "langchain",
+    "medical-ai",
+    "ophthalmology",
+    "rag",
+    "llamaindex",
+    "healthcare",
+    "ai-agent"
+  ],
+  "author": "",
+  "license": "MIT"
+}
