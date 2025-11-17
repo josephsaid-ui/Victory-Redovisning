@@ -24,8 +24,16 @@
 | **LangFlow** | Low-code | Free | Låg | Visual agent builder | Under utveckling |
 | **Haystack** | Framework | Free | Medium | RAG pipelines | Specifik för RAG |
 | **LlamaIndex** | Framework | Free | Medium | Data indexing | Fokus på retrieval |
-| **DSPy** | Framework | Free | Hög | Prompt optimization | Ny, färre exempel |
+| **DSPy** | Framework | Free | Hög | Prompt optimization | Kräver träning |
 | **Semantic Kernel** | Framework | Free | Medium | Microsoft stack | .NET-fokuserad |
+| **Langfuse** | Observability | Free-$99/mån | Låg | Tracing & analytics | Endast monitoring |
+| **Vercel AI SDK** | Framework | Free | Låg-Medium | Next.js integration | JavaScript-fokus |
+| **LiteLLM** | Proxy | Free (self-host) | Låg | Unified API | Proxy layer only |
+
+**🆕 Nytt Q1 2025:**
+- **Langfuse**: Bästa open-source observability
+- **Vercel AI SDK**: Standard för Next.js AI apps
+- **LiteLLM**: Load balancing mellan LLM-providers
 
 ---
 
@@ -66,16 +74,20 @@ Kan du koda?
 
 ---
 
-### Cost Comparison (per 1M tokens)
+### Cost Comparison (per 1M tokens) - Uppdaterad Januari 2025
 
-| LLM | Input | Output | Sweet spot |
-|-----|-------|--------|------------|
-| **GPT-4 Turbo** | $10 | $30 | Kvalitet viktigt |
-| **GPT-3.5 Turbo** | $0.50 | $1.50 | Bulk operations |
-| **Claude 3 Opus** | $15 | $75 | Analys, lång context |
-| **Claude 3 Sonnet** | $3 | $15 | Balans kvalitet/pris |
-| **Claude 3 Haiku** | $0.25 | $1.25 | Hög volym |
-| **Gemini Pro** | $0.50 | $1.50 | Google-ekosystem |
+| LLM | Input | Output | Context | Sweet spot |
+|-----|-------|--------|---------|------------|
+| **GPT-4o** | $2.50 | $10 | 128K | Balans pris/kvalitet |
+| **GPT-4 Turbo** | $10 | $30 | 128K | Högsta kvalitet |
+| **GPT-4o mini** | $0.15 | $0.60 | 128K | Bulk operations |
+| **Claude 3.5 Sonnet** | $3 | $15 | 200K | Bäst-i-klass kvalitet |
+| **Claude 3 Opus** | $15 | $75 | 200K | Extremt komplexa uppgifter |
+| **Claude 3 Haiku** | $0.25 | $1.25 | 200K | Hög volym, snabb |
+| **Gemini 1.5 Pro** | $1.25 | $5 | 2M | Enorm context window |
+| **Gemini 1.5 Flash** | $0.075 | $0.30 | 1M | Snabbaste/billigaste |
+
+**Nytt Q1 2025:** OpenAI GPT-4o och Gemini 1.5 erbjuder bästa pris/prestanda-balansen för de flesta use cases.
 
 ---
 
@@ -172,6 +184,46 @@ A: Sätt `verbose=True` och använd LangSmith för full tracing.
 
 **Q: Skillnad mellan LangChain och LangGraph?**
 A: LangChain: Linjära chains och basic agents. LangGraph: State machines med loopar och villkor.
+
+---
+
+### Q1 2025 Updates
+
+**Q: Vad är structured outputs och varför ska jag använda det?**
+A: Structured outputs (OpenAI, Anthropic) garanterar att LLM:en följer ett JSON schema - 100% type-safe. Bättre än function calling eftersom outputs ALLTID följer schema. Använd med Pydantic:
+```python
+class Output(BaseModel):
+    result: str
+    confidence: float
+
+response = client.beta.chat.completions.parse(
+    model="gpt-4o-2024-08-06",
+    response_format=Output
+)
+# Garanterat Output-kompatibel!
+```
+
+**Q: Hur fungerar prompt caching och hur mycket sparar jag?**
+A: Prompt caching (Anthropic, OpenAI) cachar stora delar av din prompt mellan requests:
+- **Spar 90%** på input tokens för cachade delar
+- Perfekt för RAG där dokument är samma
+- Cache varar 5-15 minuter
+- Exempel: RAG med 10K token kontext → Från $0.30 till $0.03 per request
+
+**Q: Vad är skillnaden mellan GPT-4 och GPT-4o?**
+A: GPT-4o (Omni) från maj 2024:
+- 75% billigare ($2.50 vs $10 per 1M input tokens)
+- 2x snabbare
+- Bättre på structured outputs
+- Multimodal (text, bild, ljud)
+→ Använd GPT-4o för 95% av use cases, endast GPT-4 Turbo för extremt komplexa tasks
+
+**Q: När ska jag använda Gemini istället för OpenAI/Anthropic?**
+A: Använd Gemini 1.5 när:
+- Du behöver extremt långa contexts (upp till 2M tokens)
+- Budget är tight (Flash är billigaste modellen)
+- Du är i Google Cloud ekosystemet
+- Multimodal är viktigt (native video understanding)
 
 ---
 
@@ -484,19 +536,33 @@ A: Räkna:
 
 ---
 
-### Research Papers (Cutting-Edge)
+### Research Papers (Cutting-Edge 2024-2025)
 
 1. **"ReAct: Synergizing Reasoning and Acting"** (2023)
    - https://arxiv.org/abs/2210.03629
+   - Foundation för moderna agents
 
 2. **"Tree of Thoughts"** (2023)
    - https://arxiv.org/abs/2305.10601
+   - Multi-path reasoning
 
 3. **"Reflexion: Language Agents with Verbal Reinforcement Learning"** (2023)
    - https://arxiv.org/abs/2303.11366
+   - Self-improvement patterns
 
 4. **"AutoGen: Enabling Next-Gen LLM Applications"** (2023)
    - Microsoft Research
+   - Multi-agent frameworks
+
+5. **"The Landscape of Emerging AI Agent Architectures"** (2024)
+   - https://arxiv.org/abs/2404.11584
+   - State-of-the-art översikt
+
+6. **"Agents: An Open-source Framework for Autonomous LLM Agents"** (2024)
+   - Latest production patterns
+
+7. **"Prompt Caching for Large Language Models"** (Q4 2024)
+   - Cost optimization techniques
 
 ---
 

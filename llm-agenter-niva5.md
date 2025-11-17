@@ -570,9 +570,39 @@ if estimate_cost(prompt) > 0.10:
 
 ---
 
-### 5. Cutting-Edge Tekniker (2024-2025) 🔬
+### 5. Cutting-Edge Tekniker (Q1 2025) 🔬
 
-#### 1. DSPy - Programmatic Prompt Optimization
+#### 1. Structured Outputs (OpenAI Native)
+
+**Nyhet januari 2025:** OpenAI har native structured outputs med JSON Schema - mer tillförlitligt än function calling.
+
+```python
+from openai import OpenAI
+from pydantic import BaseModel
+
+client = OpenAI()
+
+class ResearchReport(BaseModel):
+    title: str
+    summary: str
+    key_findings: list[str]
+    sources: list[str]
+    confidence_score: float
+
+completion = client.beta.chat.completions.parse(
+    model="gpt-4o-2024-08-06",  # Måste vara ny modell
+    messages=[
+        {"role": "system", "content": "Du är en research-assistent"},
+        {"role": "user", "content": "Researcha om AI agents"}
+    ],
+    response_format=ResearchReport,
+)
+
+report = completion.choices[0].message.parsed
+# Garanterat type-safe output!
+```
+
+#### 2. DSPy 2.0 - Programmatic Optimization
 
 ```python
 import dspy
@@ -585,17 +615,43 @@ class QuestionAnswer(dspy.Signature):
     answer = dspy.OutputField(desc="Koncist svar")
 
 # Använd
-lm = dspy.OpenAI(model="gpt-4")
-dspy.settings.configure(lm=lm)
+lm = dspy.LM(model="gpt-4o", max_tokens=500)
+dspy.configure(lm=lm)
 
-qa = dspy.Predict(QuestionAnswer)
+qa = dspy.ChainOfThought(QuestionAnswer)
 result = qa(
     context="AI agenter är autonoma system...",
     question="Vad är en agent?"
 )
 ```
 
-#### 2. Tree-of-Thoughts
+#### 3. Prompt Caching (Anthropic & OpenAI)
+
+**Nyhet Q4 2024:** Prompt caching kan minska kostnader med 90% för RAG och long context.
+
+```python
+from anthropic import Anthropic
+
+client = Anthropic()
+
+# Med prompt caching
+response = client.messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    system=[
+        {
+            "type": "text",
+            "text": "Du är en expert på AI agents...",
+            "cache_control": {"type": "ephemeral"}  # Cache system prompt
+        }
+    ],
+    messages=[{"role": "user", "content": "Förklara RAG"}]
+)
+
+# Nästa anrop med samma system prompt kostar 90% mindre!
+```
+
+#### 4. Tree-of-Thoughts
 
 ```python
 from langchain.prompts import PromptTemplate
@@ -662,6 +718,61 @@ Vad kan förbättras? Ge specifik feedback.
 
     return result  # Bästa efter max_iterations
 ```
+
+---
+
+## 🆕 Best Practices Q1 2025
+
+### 1. Använd Structured Outputs istället för Function Calling
+
+**Gammalt sätt (2024):**
+```python
+# Function calling - mindre tillförlitligt
+functions = [{"name": "get_weather", "parameters": {...}}]
+```
+
+**Nytt sätt (2025):**
+```python
+# Structured outputs - garanterad schema-compliance
+from pydantic import BaseModel
+
+class WeatherResponse(BaseModel):
+    location: str
+    temperature: float
+    conditions: str
+
+# 100% schema-compliant output
+```
+
+### 2. Prompt Caching för RAG
+
+**Spara 90% på RAG-kostnader:**
+```python
+# Cache stora dokument i system prompt
+system_prompt_with_docs = f"""
+{large_document_context}  # Detta cachas!
+"""
+# Använd cache_control i Anthropic eller reasoning_effort i OpenAI
+```
+
+### 3. Model Router Pattern
+
+**Använd billiga modeller först, escalera vid behov:**
+```python
+def smart_routing(query: str):
+    # Enkel query? Använd gpt-4o-mini
+    if is_simple(query):
+        return cheap_model.invoke(query)
+    # Komplex? Använd gpt-4o
+    return expensive_model.invoke(query)
+```
+
+### 4. Observability är KRITISKT
+
+**Använd ALLTID:**
+- LangSmith för tracing
+- Structured logging
+- Cost tracking per user/session
 
 ---
 

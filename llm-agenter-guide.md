@@ -166,4 +166,38 @@ Välj din startpunkt:
 
 ---
 
+## 🆕 Vad är nytt Q1 2025?
+
+### Stora förändringar i AI-agent landskapet:
+
+**🚀 Nya LLM:er med bättre pris/prestanda:**
+- **GPT-4o**: Ersätter GPT-4 Turbo som standard (75% billigare)
+- **Claude 3.5 Sonnet**: Bäst-i-klass kvalitet för agents
+- **Gemini 1.5 Pro/Flash**: Extremt långa context windows (upp till 2M tokens)
+
+**🔧 Nya tekniker:**
+- **Structured Outputs**: Garanterad schema-compliance från OpenAI/Anthropic
+- **Prompt Caching**: 90% kostnadsminskning för RAG (Anthropic, OpenAI)
+- **Native Multi-step Reasoning**: O1-modeller för komplex planering
+
+**🛠️ Nya verktyg:**
+- **Langfuse**: Open-source observability platform
+- **LiteLLM**: Load balancing och unified API
+- **Vercel AI SDK**: Standard för Next.js integration
+
+**📊 Best Practices uppdaterade:**
+- Använd structured outputs istället för function calling
+- Implementera prompt caching för all RAG
+- Model routing (billig modell först, escalera vid behov)
+- Observability är inte längre optional
+
+**💰 Kostnadsminskning:**
+- Prompt caching: -90% för RAG use cases
+- GPT-4o vs GPT-4: -75% kostnad
+- Gemini Flash: Billigaste option för hög volym
+
+**Se detaljerad breakdown i [Nivå 5](./llm-agenter-niva5.md#-best-practices-q1-2025) och [FAQ](./llm-agenter-extra.md#-vanliga-frågor-faq).**
+
+---
+
 [Nästa: Nivå 1 - Grundkonceptet 👶 →](./llm-agenter-niva1.md)
