@@ -1695,3 +1695,1264 @@ Nu har du lärt dig grundtermerna och hur agenter fungerar! I Nivå 3 går vi dj
 
 ---
 
+## Nivå 3a: Gymnasiet - Tekniska Detaljer (Del 1) 💻
+
+### Introduktion
+
+Nu blir det seriöst! I denna nivå kommer du att lära dig hur man faktiskt bygger LLM-agenter med kod. Vi går igenom de populäraste frameworks, visar konkreta kodexempel, och lär dig best practices från 2025. Du kommer att skriva din första fungerande agent och förstå hur proffs bygger produktionsklara system. Efter denna nivå kan du börja bygga egna agentprojekt!
+
+**Vad du kommer att lära dig:**
+- Praktisk implementation med Python och moderna frameworks
+- LangChain, LangGraph, AutoGen, CrewAI
+- Verkliga kodexempel du kan köra direkt
+- Priser och kostnadsoptimering för olika LLM-providers
+- Säkerhet och best practices 2025
+
+### Kärnkoncept
+
+#### 1. 💰 LLM Pricing - Kostnader 2025
+
+Innan du börjar bygga agenter måste du förstå kostnadsstrukturen. Här är de senaste priserna (november 2025):
+
+**Major LLM Providers - Priser per miljon tokens:**
+
+| Provider | Modell | Input ($/1M) | Output ($/1M) | Context Window | Best For |
+|----------|--------|--------------|---------------|----------------|----------|
+| **OpenAI** | GPT-4o | $2.50 | $10.00 | 128K | Generalist, komplex reasoning |
+| OpenAI | GPT-4o-mini | $0.15 | $0.60 | 128K | Snabba, enkla uppgifter |
+| **Anthropic** | Claude 4.5 Sonnet | $3.00 | $15.00 | 200K | Längre kontext, coding |
+| Anthropic | Claude 4.5 Haiku | $0.25 | $1.25 | 200K | Snabba responses |
+| **Google** | Gemini 2.0 Pro | $1.25 | $5.00 | 1M | Massiv context, multimodal |
+| Google | Gemini 2.0 Flash | $0.075 | $0.30 | 1M | Billigast, snabbast |
+| **DeepSeek** | DeepSeek-R1 | $0.55 | $2.19 | 64K | Cost-effective reasoning |
+
+**Viktig insikt från 2025:**
+- **Output tokens kostar 3-5x mer** än input tokens
+- **Gemini Flash** är billigast för höga volymer
+- **Claude 4.5** har längst context window (200K tokens)
+- **Gemini 2.0 Pro** har extremt lång context (1M tokens!) - perfekt för RAG
+
+**Kostnadsexempel:**
+
+En chatbot som hanterar 100,000 konversationer/dag:
+- Genomsnitt: 500 input tokens, 200 output tokens per konversation
+
+```python
+# Beräkning för GPT-4o
+input_cost = (500 * 100000 / 1_000_000) * 2.50   # $125/dag
+output_cost = (200 * 100000 / 1_000_000) * 10.00 # $200/dag
+total_daily = input_cost + output_cost            # $325/dag
+monthly_cost = total_daily * 30                   # $9,750/månad
+
+# Jämför med Gemini Flash
+input_cost_gemini = (500 * 100000 / 1_000_000) * 0.075   # $3.75/dag
+output_cost_gemini = (200 * 100000 / 1_000_000) * 0.30   # $6/dag
+total_daily_gemini = input_cost_gemini + output_cost_gemini # $9.75/dag
+monthly_cost_gemini = total_daily_gemini * 30              # $292.50/månad
+
+# Besparing: $9,750 - $292.50 = $9,457.50/månad (97% billigare!)
+```
+
+#### 2. 🛠️ Agent Frameworks 2025
+
+**Översikt av populära frameworks:**
+
+**A) LangChain + LangGraph**
+
+LangChain är det mest använda frameworket, med 110K+ GitHub stars (2025). LangGraph 1.0 släpptes i oktober 2024 och är nu standard för stateful agents.
+
+```python
+# Installation
+pip install langchain langchain-openai langgraph
+
+# Enkel agent med LangChain
+from langchain.agents import AgentExecutor, create_openai_functions_agent
+from langchain_openai import ChatOpenAI
+from langchain.tools import tool
+from langchain.prompts import ChatPromptTemplate
+
+# 1. Definiera verktyg
+@tool
+def get_weather(city: str) -> str:
+    """Hämtar väder för en stad"""
+    # I verkligheten: API-anrop
+    return f"Soligt och 22°C i {city}"
+
+@tool
+def calculator(expression: str) -> float:
+    """Räknar matematiska uttryck"""
+    return eval(expression)  # OBS: Använd inte eval() i produktion!
+
+# 2. Sätt upp LLM
+llm = ChatOpenAI(
+    model="gpt-4o-mini",  # Billigare för enkla agents
+    temperature=0         # Deterministisk för agents
+)
+
+# 3. Skapa prompt
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "Du är en hjälpsam assistent med tillgång till verktyg."),
+    ("human", "{input}"),
+    ("placeholder", "{agent_scratchpad}")  # För agent reasoning
+])
+
+# 4. Skapa agent
+tools = [get_weather, calculator]
+agent = create_openai_functions_agent(llm, tools, prompt)
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+# 5. Kör agent
+result = agent_executor.invoke({
+    "input": "Vad är vädret i Stockholm och hur många grader Fahrenheit är det?"
+})
+print(result["output"])
+```
+
+**Output exempel:**
+```
+> Entering new AgentExecutor chain...
+
+Thought: Jag behöver först få vädret i Stockholm, sen konvertera till Fahrenheit
+
+Action: get_weather
+Action Input: Stockholm
+Observation: Soligt och 22°C i Stockholm
+
+Thought: Nu behöver jag konvertera 22°C till Fahrenheit med formeln F = C * 9/5 + 32
+
+Action: calculator
+Action Input: 22 * 9/5 + 32
+Observation: 71.6
+
+Thought: Nu har jag all information
+
+Final Answer: Det är soligt och 22°C (71.6°F) i Stockholm!
+```
+
+**B) LangGraph - Stateful Agent Workflows**
+
+LangGraph 1.0 (2024) introducerade graph-baserade agent flows med persistens och checkpoints.
+
+```python
+from langgraph.graph import StateGraph, END
+from typing import TypedDict, Annotated
+import operator
+
+# 1. Definiera state
+class AgentState(TypedDict):
+    messages: Annotated[list, operator.add]
+    next_step: str
+    data: dict
+
+# 2. Definiera nodes (steg i agenten)
+def research_node(state: AgentState):
+    """Researchar information"""
+    # Gör research...
+    return {
+        "messages": [("assistant", "Research done!")],
+        "next_step": "analyze",
+        "data": {"research": "findings"}
+    }
+
+def analyze_node(state: AgentState):
+    """Analyserar research"""
+    # Analysera...
+    return {
+        "messages": [("assistant", "Analysis complete!")],
+        "next_step": "write",
+        "data": {**state["data"], "analysis": "insights"}
+    }
+
+def write_node(state: AgentState):
+    """Skriver rapport"""
+    return {
+        "messages": [("assistant", "Report written!")],
+        "next_step": END
+    }
+
+# 3. Bygg graph
+workflow = StateGraph(AgentState)
+
+# Lägg till nodes
+workflow.add_node("research", research_node)
+workflow.add_node("analyze", analyze_node)
+workflow.add_node("write", write_node)
+
+# Lägg till edges (flöde)
+workflow.set_entry_point("research")
+workflow.add_edge("research", "analyze")
+workflow.add_edge("analyze", "write")
+workflow.add_edge("write", END)
+
+# 4. Kompilera
+app = workflow.compile()
+
+# 5. Kör med state persistence
+result = app.invoke({
+    "messages": [],
+    "next_step": "research",
+    "data": {}
+})
+
+print(result)
+```
+
+**Varför LangGraph?**
+- ✅ Stateful - agent kommer ihåg mellan steg
+- ✅ Checkpoints - kan återuppta om något går fel
+- ✅ Human-in-the-loop - kan pausa och fråga användaren
+- ✅ Parallella branches - flera agents samtidigt
+
+**C) AutoGen - Multi-Agent Conversations**
+
+AutoGen (Microsoft) specialiserar sig på multi-agent dialoger.
+
+```python
+from autogen import AssistantAgent, UserProxyAgent
+
+# 1. Konfigurera LLM
+llm_config = {
+    "model": "gpt-4o",
+    "api_key": "your-api-key",
+    "temperature": 0.7
+}
+
+# 2. Skapa agents
+# Assistant som skriver kod
+coder = AssistantAgent(
+    name="Coder",
+    system_message="Du är en expert Python-utvecklare. Skriv ren, testbar kod.",
+    llm_config=llm_config
+)
+
+# Assistant som granskar kod
+reviewer = AssistantAgent(
+    name="Reviewer",
+    system_message="Du granskar kod för bugs och förbättringar.",
+    llm_config=llm_config
+)
+
+# User proxy som kör kod
+user_proxy = UserProxyAgent(
+    name="User",
+    human_input_mode="NEVER",  # Kör automatiskt
+    code_execution_config={"work_dir": "coding"}
+)
+
+# 3. Starta konversation
+user_proxy.initiate_chat(
+    coder,
+    message="Skriv en funktion som beräknar Fibonacci-tal rekursivt och iterativt. Inkludera tester."
+)
+
+# Agenter pratar nu med varandra tills uppgiften är klar!
+```
+
+**D) CrewAI - Role-Based Teams**
+
+CrewAI fokuserar på team-baserade agents med tydliga roller.
+
+```python
+from crewai import Agent, Task, Crew, Process
+
+# 1. Definiera agents med roller
+researcher = Agent(
+    role='Researcher',
+    goal='Hitta och sammanfatta information om LLM-agenter',
+    backstory='Expert på AI-research med fokus på praktiska implementationer',
+    verbose=True,
+    allow_delegation=False
+)
+
+writer = Agent(
+    role='Tech Writer',
+    goal='Skriv pedagogiska artiklar om AI',
+    backstory='Erfaren teknisk författare som gör komplexa ämnen begripliga',
+    verbose=True,
+    allow_delegation=False
+)
+
+# 2. Definiera tasks
+research_task = Task(
+    description='Research de 5 viktigaste trenderna inom LLM-agenter 2025',
+    agent=researcher,
+    expected_output='Bullet-lista med 5 trender och korta beskrivningar'
+)
+
+writing_task = Task(
+    description='Skriv en bloggpost baserat på researchen',
+    agent=writer,
+    expected_output='800-ord bloggpost i markdown-format'
+)
+
+# 3. Skapa crew
+crew = Crew(
+    agents=[researcher, writer],
+    tasks=[research_task, writing_task],
+    process=Process.sequential  # Eller Process.hierarchical
+)
+
+# 4. Kör
+result = crew.kickoff()
+print(result)
+```
+
+**E) Vercel AI SDK 6.0 (2025)**
+
+Ny på scenen men extremt populär för web-applikationer.
+
+```typescript
+// Installation: npm install ai @ai-sdk/openai
+
+import { openai } from '@ai-sdk/openai';
+import { generateText, tool } from 'ai';
+import { z } from 'zod';
+
+// 1. Definiera verktyg med Zod schema
+const weatherTool = tool({
+  description: 'Hämta väder för en stad',
+  parameters: z.object({
+    city: z.string().describe('Stadens namn'),
+  }),
+  execute: async ({ city }) => {
+    // API-anrop här
+    return { temp: 22, condition: 'sunny', city };
+  },
+});
+
+// 2. Kör agent
+const { text } = await generateText({
+  model: openai('gpt-4o'),
+  tools: { weather: weatherTool },
+  maxSteps: 5,  // Max antal tool calls
+  prompt: 'Vad är vädret i Stockholm och Paris?',
+});
+
+console.log(text);
+```
+
+**Framework Jämförelse 2025:**
+
+| Framework | Best For | Svårighet | GitHub Stars | Production Ready |
+|-----------|----------|-----------|--------------|------------------|
+| LangChain | Generalist, RAG | Medel | 110K+ | ✅ Ja |
+| LangGraph | Complex workflows | Hög | (del av LangChain) | ✅ Ja |
+| AutoGen | Multi-agent dialogs | Medel | 35K+ | ✅ Ja |
+| CrewAI | Role-based teams | Låg | 25K+ | ⚠️ Beta |
+| Vercel AI SDK | Web apps, TypeScript | Låg | 15K+ | ✅ Ja |
+
+#### 3. 🎯 Best Practices 2025
+
+**A) Prompt Caching - Spara 90% på kostnader**
+
+Ny feature från 2024 som cachar system prompts.
+
+```python
+from anthropic import Anthropic
+
+client = Anthropic(api_key="your-key")
+
+# Lång system prompt som sällan ändras
+SYSTEM_PROMPT = """
+Du är en expert Python-utvecklare...
+[2000 ord med exempel, guidelines, etc]
+"""
+
+# Första anropet - betalar för hela prompten
+response = client.messages.create(
+    model="claude-4.5-sonnet-20250514",
+    max_tokens=1024,
+    system=[
+        {
+            "type": "text",
+            "text": SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"}  # Cache i 5 min
+        }
+    ],
+    messages=[{"role": "user", "content": "Skriv en funktion som..."}]
+)
+
+# Nästa anrop inom 5 min - betalar bara 10% för cachad prompt!
+response2 = client.messages.create(
+    model="claude-4.5-sonnet-20250514",
+    max_tokens=1024,
+    system=[
+        {
+            "type": "text",
+            "text": SYSTEM_PROMPT,
+            "cache_control": {"type": "ephemeral"}
+        }
+    ],
+    messages=[{"role": "user", "content": "En annan fråga..."}]
+)
+
+# Kostnadsbesparing:
+# Utan caching: $3.00/1M tokens × 2000 tokens = $0.006 per anrop
+# Med caching: $0.006 första, $0.0006 nästa = 90% billigare!
+```
+
+**B) Structured Outputs - Garanterad JSON**
+
+Alla major providers stödjer nu structured outputs (2024-2025).
+
+```python
+from openai import OpenAI
+from pydantic import BaseModel
+
+client = OpenAI()
+
+# 1. Definiera struktur med Pydantic
+class CalendarEvent(BaseModel):
+    title: str
+    date: str
+    time: str
+    attendees: list[str]
+    location: str
+
+# 2. Få garanterad strukturerad output
+completion = client.beta.chat.completions.parse(
+    model="gpt-4o-2024-08-06",
+    messages=[
+        {"role": "system", "content": "Extrahera kalenderhändelser från text"},
+        {"role": "user", "content": "Möte med Lisa och John imorgon kl 14 på kontoret"}
+    ],
+    response_format=CalendarEvent
+)
+
+event = completion.choices[0].message.parsed
+print(event.title)      # "Möte med Lisa och John"
+print(event.attendees)  # ["Lisa", "John"]
+
+# Ingen parsing errors - garanterat rätt format! ✅
+```
+
+**C) Model Routing - Använd rätt modell för rätt uppgift**
+
+```python
+from langchain.chat_models import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate
+from langchain.schema.runnable import RunnableBranch
+
+# Definiera olika modeller
+fast_cheap_model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+smart_expensive_model = ChatOpenAI(model="gpt-4o", temperature=0)
+
+# Klassificera uppgift
+def classify_complexity(query: str) -> str:
+    """Enkel klassificerare"""
+    complex_keywords = ["analysera", "förklara varför", "jämför", "utvärdera"]
+    if any(keyword in query.lower() for keyword in complex_keywords):
+        return "complex"
+    return "simple"
+
+# Router
+def route_query(query: str):
+    if classify_complexity(query) == "complex":
+        return smart_expensive_model
+    return fast_cheap_model
+
+# Användning
+query1 = "Vad är 5 + 3?"  # → gpt-4o-mini ($0.15/1M)
+query2 = "Analysera skillnaderna mellan ReAct och Reflexion"  # → gpt-4o ($2.50/1M)
+
+# Besparing: 90% av queries är enkla → 85% kostnadsbesparing totalt!
+```
+
+### Exempel
+
+#### Exempel 1: Din första ReAct Agent från scratch
+
+```python
+from openai import OpenAI
+import json
+
+client = OpenAI(api_key="your-key")
+
+# 1. Definiera verktyg
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Söker information på internet",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Sökfråga"}
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calculator",
+            "description": "Utför matematiska beräkningar",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {"type": "string", "description": "Matematiskt uttryck"}
+                },
+                "required": ["expression"]
+            }
+        }
+    }
+]
+
+# 2. Implementera verktyg
+def web_search(query: str) -> str:
+    # I produktion: använd Google Search API, Tavily, etc.
+    mock_results = {
+        "befolkning stockholm": "Stockholm har cirka 978,000 invånare (2025)",
+        "befolkning göteborg": "Göteborg har cirka 590,000 invånare (2025)"
+    }
+    return mock_results.get(query.lower(), "Ingen data hittad")
+
+def calculator(expression: str) -> str:
+    try:
+        # Säkrare än eval: använd ast.literal_eval eller ett math library
+        result = eval(expression)
+        return str(result)
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# 3. Agent loop
+def run_agent(user_query: str, max_iterations: int = 5):
+    messages = [
+        {"role": "system", "content": "Du är en hjälpsam assistent. Använd verktyg för att svara."},
+        {"role": "user", "content": user_query}
+    ]
+
+    for iteration in range(max_iterations):
+        print(f"\n--- Iteration {iteration + 1} ---")
+
+        # Anropa LLM
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            tools=tools,
+            tool_choice="auto"
+        )
+
+        assistant_message = response.choices[0].message
+        messages.append(assistant_message)
+
+        # Check om LLM vill använda verktyg
+        if assistant_message.tool_calls:
+            for tool_call in assistant_message.tool_calls:
+                function_name = tool_call.function.name
+                arguments = json.loads(tool_call.function.arguments)
+
+                print(f"🔧 Calling: {function_name}({arguments})")
+
+                # Kör verktyg
+                if function_name == "web_search":
+                    result = web_search(arguments["query"])
+                elif function_name == "calculator":
+                    result = calculator(arguments["expression"])
+                else:
+                    result = "Unknown tool"
+
+                print(f"📊 Result: {result}")
+
+                # Lägg till resultat i messages
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": result
+                })
+        else:
+            # Inget tool call - agenten är klar
+            print(f"\n✅ Final Answer: {assistant_message.content}")
+            return assistant_message.content
+
+    return "Max iterations reached"
+
+# 4. Testa agenten
+result = run_agent(
+    "Hur många fler invånare har Stockholm än Göteborg i procent?"
+)
+```
+
+**Output:**
+```
+--- Iteration 1 ---
+🔧 Calling: web_search({'query': 'befolkning stockholm'})
+📊 Result: Stockholm har cirka 978,000 invånare (2025)
+
+--- Iteration 2 ---
+🔧 Calling: web_search({'query': 'befolkning göteborg'})
+📊 Result: Göteborg har cirka 590,000 invånare (2025)
+
+--- Iteration 3 ---
+🔧 Calling: calculator({'expression': '((978000 - 590000) / 590000) * 100'})
+📊 Result: 65.76271186440678
+
+✅ Final Answer: Stockholm har cirka 65.8% fler invånare än Göteborg.
+```
+
+#### Exempel 2: Multi-Agent System med CrewAI
+
+```python
+from crewai import Agent, Task, Crew, Process
+from langchain_openai import ChatOpenAI
+
+# Konfigurera LLM
+llm = ChatOpenAI(model="gpt-4o-mini")
+
+# 1. Market Research Agent
+market_researcher = Agent(
+    role='Market Research Analyst',
+    goal='Analysera marknaden för LLM-agents verktyg',
+    backstory="""Du är en erfaren marknadsanalytiker med expertis inom AI-verktyg.
+    Du är bra på att identifiera trender och konkurrensfördel.""",
+    llm=llm,
+    verbose=True
+)
+
+# 2. Product Manager Agent
+product_manager = Agent(
+    role='Product Manager',
+    goal='Definiera features för en ny LLM-agent produkt',
+    backstory="""Du är en produktchef med 10 års erfarenhet.
+    Du förstår användarbehov och kan prioritera features.""",
+    llm=llm,
+    verbose=True
+)
+
+# 3. Developer Agent
+developer = Agent(
+    role='Senior Python Developer',
+    goal='Skapa teknisk implementation plan',
+    backstory="""Du är en senior utvecklare med expertis i Python, LangChain och FastAPI.
+    Du skriver ren, skalbar kod.""",
+    llm=llm,
+    verbose=True
+)
+
+# Definiera tasks
+research_task = Task(
+    description="""Analysera marknaden för LLM-agent verktyg.
+    Identifiera top 5 konkurrenter och deras styrkor/svagheter.
+    Rekommendera ett gap i marknaden vi kan fylla.""",
+    agent=market_researcher,
+    expected_output='Markdown rapport med konkurrentanalys och rekommendation'
+)
+
+product_task = Task(
+    description="""Baserat på market research, definiera:
+    1. Target användare (persona)
+    2. Core features (top 5)
+    3. Unique value proposition
+    4. MVP scope""",
+    agent=product_manager,
+    expected_output='Product Requirements Document (PRD) i markdown'
+)
+
+development_task = Task(
+    description="""Skapa teknisk implementation plan:
+    1. Tech stack (frameworks, databaser, etc)
+    2. System arkitektur (diagram)
+    3. API design
+    4. Development timeline (milestones)""",
+    agent=developer,
+    expected_output='Technical Design Document i markdown med kod-exempel'
+)
+
+# Skapa crew
+startup_crew = Crew(
+    agents=[market_researcher, product_manager, developer],
+    tasks=[research_task, product_task, development_task],
+    process=Process.sequential,  # Kör i ordning
+    verbose=True
+)
+
+# Kör!
+result = startup_crew.kickoff()
+
+print("\n" + "="*50)
+print("FINAL RESULT")
+print("="*50)
+print(result)
+```
+
+### Visualisering
+
+#### Agent Framework Decision Tree
+
+```
+Vad ska du bygga?
+       │
+       ├─ Enkel chatbot med verktyg?
+       │  └─→ LangChain (basic)
+       │
+       ├─ Komplex workflow med state?
+       │  └─→ LangGraph
+       │
+       ├─ Flera agents som pratar med varandra?
+       │  └─→ AutoGen
+       │
+       ├─ Team med tydliga roller?
+       │  └─→ CrewAI
+       │
+       ├─ Web app med TypeScript?
+       │  └─→ Vercel AI SDK
+       │
+       └─ Custom solution från scratch?
+          └─→ OpenAI/Anthropic API direkt
+```
+
+#### Cost Optimization Strategy
+
+```
+┌─────────────────────────────────────────────────┐
+│          COST OPTIMIZATION PYRAMID               │
+└─────────────────────────────────────────────────┘
+
+    ▲
+   /1\ Använd smartaste modellen (GPT-4o, Claude 4.5)
+  /   \ För: Complex reasoning, kritiska beslut
+ /  5% \ Kostnad: Hög
+/───────\
+/       \
+/    2   \ Använd mellanmodellen (GPT-4o-mini, Haiku)
+/         \ För: Normal processing, de flesta queries
+/   20%    \ Kostnad: Medel
+/───────────\
+/           \
+/      3     \ Använd billigaste modellen (Gemini Flash)
+/             \ För: Simple tasks, klassificering
+/     75%      \ Kostnad: Mycket låg
+/───────────────\
+
+Strategi:
+1. Klassificera query-komplexitet först (billig modell)
+2. Route till rätt modell
+3. Cache system prompts (90% besparing)
+4. Batchning för icke-realtid uppgifter
+
+Resultat: 80-90% total kostnadsbesparing! 🎉
+```
+
+### 💡 Pro Tips
+
+**Tip 1: Börja med GPT-4o-mini för development**
+Under utveckling, använd alltid `-mini` versioner. De är 90% billigare och oftast lika bra för testning.
+
+```python
+# Development
+llm = ChatOpenAI(model="gpt-4o-mini")
+
+# Production (efter testing)
+llm = ChatOpenAI(model="gpt-4o")
+```
+
+**Tip 2: Sätt alltid temperature=0 för agents**
+Agents behöver vara deterministiska för tool calling.
+
+```python
+# ❌ Dåligt - random outputs
+llm = ChatOpenAI(temperature=0.7)
+
+# ✅ Bra - consistent tool calls
+llm = ChatOpenAI(temperature=0)
+```
+
+**Tip 3: Använd verbose=True under utveckling**
+Se vad agenten tänker!
+
+```python
+agent_executor = AgentExecutor(
+    agent=agent,
+    tools=tools,
+    verbose=True  # Visar hela reasoning chain
+)
+```
+
+**Tip 4: Prompt Caching = Gratis pengar**
+Om din system prompt är >1000 tokens, använd caching.
+
+```python
+# Spara 90% på upprepade anrop
+system=[{
+    "type": "text",
+    "text": LONG_SYSTEM_PROMPT,
+    "cache_control": {"type": "ephemeral"}  # ← Lägg till denna rad!
+}]
+```
+
+### ✏️ Övningar
+
+#### Övning 3.1: Bygg din första Tool-Calling Agent
+
+**Svårighetsgrad**: ⭐⭐⭐
+**Tid**: ~20 minuter
+
+**Uppgift:**
+Skapa en agent som kan hjälpa användare att:
+1. Konvertera valutor (SEK ↔ USD ↔ EUR)
+2. Beräkna moms (25%)
+3. Ge dagens växelkurs (hårdkodat: 1 USD = 10.50 SEK, 1 EUR = 11.20 SEK)
+
+**Krav:**
+- Använd OpenAI function calling
+- Implementera minst 3 verktyg
+- Agenten ska kunna kombinera verktyg (ex: "Vad kostar $100 inklusive moms i SEK?")
+
+**Startkod:**
+
+```python
+from openai import OpenAI
+import json
+
+client = OpenAI(api_key="your-key")
+
+# TODO: Implementera dessa funktioner
+def convert_currency(amount: float, from_currency: str, to_currency: str) -> float:
+    """Konverterar mellan valutor"""
+    # Din kod här
+    pass
+
+def calculate_vat(amount: float, include: bool = True) -> float:
+    """Beräknar moms (25%)"""
+    # Din kod här
+    pass
+
+# TODO: Definiera tools JSON för function calling
+tools = [
+    # Din tool definition här
+]
+
+# TODO: Implementera agent loop
+def run_currency_agent(query: str):
+    # Din agent implementation här
+    pass
+
+# Testa
+run_currency_agent("Hur mycket är $100 med moms i svenska kronor?")
+```
+
+**Tips:**
+- Växelkurser: USD=10.50 SEK, EUR=11.20 SEK
+- Moms 25% means: `price * 1.25` (inkludera) eller `price / 1.25` (exkludera)
+- Agenten behöver kanske göra flera tool calls i sekvens
+
+<details>
+<summary>💡 Lösning</summary>
+
+```python
+from openai import OpenAI
+import json
+
+client = OpenAI(api_key="your-key")
+
+# Växelkurser (hårdkodade)
+RATES = {
+    "USD_TO_SEK": 10.50,
+    "EUR_TO_SEK": 11.20,
+    "SEK_TO_USD": 1/10.50,
+    "SEK_TO_EUR": 1/11.20,
+    "USD_TO_EUR": 10.50/11.20,
+    "EUR_TO_USD": 11.20/10.50
+}
+
+def convert_currency(amount: float, from_currency: str, to_currency: str) -> float:
+    """Konverterar mellan valutor"""
+    if from_currency == to_currency:
+        return amount
+
+    key = f"{from_currency}_TO_{to_currency}"
+    if key in RATES:
+        return round(amount * RATES[key], 2)
+    else:
+        return f"Valutapar {key} stöds inte"
+
+def calculate_vat(amount: float, include: bool = True) -> float:
+    """Beräknar moms (25%)"""
+    VAT_RATE = 0.25
+    if include:
+        # Lägg till moms
+        return round(amount * (1 + VAT_RATE), 2)
+    else:
+        # Ta bort moms
+        return round(amount / (1 + VAT_RATE), 2)
+
+def get_exchange_rate(from_currency: str, to_currency: str) -> str:
+    """Hämtar aktuell växelkurs"""
+    if from_currency == to_currency:
+        return "1.00"
+
+    key = f"{from_currency}_TO_{to_currency}"
+    if key in RATES:
+        return str(RATES[key])
+    return "Växelkurs ej tillgänglig"
+
+# Definiera tools
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "convert_currency",
+            "description": "Konverterar ett belopp mellan olika valutor (SEK, USD, EUR)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "amount": {
+                        "type": "number",
+                        "description": "Beloppet som ska konverteras"
+                    },
+                    "from_currency": {
+                        "type": "string",
+                        "enum": ["SEK", "USD", "EUR"],
+                        "description": "Från valuta"
+                    },
+                    "to_currency": {
+                        "type": "string",
+                        "enum": ["SEK", "USD", "EUR"],
+                        "description": "Till valuta"
+                    }
+                },
+                "required": ["amount", "from_currency", "to_currency"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate_vat",
+            "description": "Beräknar belopp inklusive eller exklusive moms (25%)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "amount": {
+                        "type": "number",
+                        "description": "Grundbeloppet"
+                    },
+                    "include": {
+                        "type": "boolean",
+                        "description": "True för att lägga till moms, False för att ta bort moms"
+                    }
+                },
+                "required": ["amount", "include"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_exchange_rate",
+            "description": "Hämtar aktuell växelkurs mellan två valutor",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "from_currency": {
+                        "type": "string",
+                        "enum": ["SEK", "USD", "EUR"]
+                    },
+                    "to_currency": {
+                        "type": "string",
+                        "enum": ["SEK", "USD", "EUR"]
+                    }
+                },
+                "required": ["from_currency", "to_currency"]
+            }
+        }
+    }
+]
+
+def run_currency_agent(query: str, max_iterations: int = 10):
+    """Kör valuta-agenten"""
+    messages = [
+        {
+            "role": "system",
+            "content": "Du är en valutaassistent. Hjälp användare med valutakonvertering och momsberäkningar."
+        },
+        {"role": "user", "content": query}
+    ]
+
+    for iteration in range(max_iterations):
+        print(f"\n--- Iteration {iteration + 1} ---")
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            tools=tools,
+            tool_choice="auto"
+        )
+
+        assistant_message = response.choices[0].message
+        messages.append(assistant_message)
+
+        if assistant_message.tool_calls:
+            for tool_call in assistant_message.tool_calls:
+                function_name = tool_call.function.name
+                arguments = json.loads(tool_call.function.arguments)
+
+                print(f"🔧 {function_name}({arguments})")
+
+                # Kör rätt funktion
+                if function_name == "convert_currency":
+                    result = convert_currency(**arguments)
+                elif function_name == "calculate_vat":
+                    result = calculate_vat(**arguments)
+                elif function_name == "get_exchange_rate":
+                    result = get_exchange_rate(**arguments)
+                else:
+                    result = "Unknown function"
+
+                print(f"📊 {result}")
+
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": str(result)
+                })
+        else:
+            print(f"\n✅ {assistant_message.content}")
+            return assistant_message.content
+
+    return "Max iterations"
+
+# Testa
+print("="*60)
+print("TEST 1: Enkel konvertering")
+print("="*60)
+run_currency_agent("Hur mycket är $100 i svenska kronor?")
+
+print("\n" + "="*60)
+print("TEST 2: Konvertering med moms")
+print("="*60)
+run_currency_agent("Vad kostar $100 inklusive moms i SEK?")
+
+print("\n" + "="*60)
+print("TEST 3: Komplex fråga")
+print("="*60)
+run_currency_agent("Jag har 5000 SEK. Hur mycket blir det i dollar, och vad är det med 25% moms?")
+```
+
+**Output exempel:**
+
+```
+============================================================
+TEST 2: Konvertering med moms
+============================================================
+
+--- Iteration 1 ---
+🔧 convert_currency({'amount': 100, 'from_currency': 'USD', 'to_currency': 'SEK'})
+📊 1050.0
+
+--- Iteration 2 ---
+🔧 calculate_vat({'amount': 1050.0, 'include': True})
+📊 1312.5
+
+✅ $100 kostar 1312.50 SEK inklusive moms (25%).
+```
+
+**Varför fungerar detta?**
+1. Agenten får frågan och förstår att den behöver två steg
+2. Först konverterar den USD→SEK (tool call 1)
+3. Sen lägger den till moms (tool call 2)
+4. Agenten kombinerar resultaten i ett begripligt svar
+
+Detta visar hur agents kan **kedja verktyg** för att lösa komplexa uppgifter!
+
+</details>
+
+---
+
+#### Övning 3.2: Framework Comparison
+
+**Svårighetsgrad**: ⭐⭐
+**Tid**: ~15 minuter
+
+**Uppgift:**
+Implementera **samma** agent i två olika frameworks och jämför:
+
+**Agent spec:** En agent som tar en text och:
+1. Räknar antal ord
+2. Räknar antal meningar
+3. Beräknar genomsnittlig meningslängd
+
+Implementera med:
+- A) LangChain
+- B) Direkt med OpenAI API
+
+**Jämför:**
+- Hur många rader kod?
+- Hur lätt är det att förstå?
+- Vilka fördelar/nackdelar?
+
+<details>
+<summary>💡 Lösning</summary>
+
+**A) LangChain Implementation:**
+
+```python
+from langchain.agents import AgentExecutor, create_openai_functions_agent
+from langchain_openai import ChatOpenAI
+from langchain.tools import tool
+from langchain.prompts import ChatPromptTemplate
+
+@tool
+def count_words(text: str) -> int:
+    """Räknar antal ord i texten"""
+    return len(text.split())
+
+@tool
+def count_sentences(text: str) -> int:
+    """Räknar antal meningar"""
+    # Enkel: räkna . ! ?
+    return text.count('.') + text.count('!') + text.count('?')
+
+@tool
+def average_sentence_length(text: str) -> float:
+    """Beräknar genomsnittlig meningslängd"""
+    words = len(text.split())
+    sentences = text.count('.') + text.count('!') + text.count('?')
+    return round(words / sentences if sentences > 0 else 0, 2)
+
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "Du analyserar text. Använd verktygen för att ge statistik."),
+    ("human", "{input}"),
+    ("placeholder", "{agent_scratchpad}")
+])
+
+tools = [count_words, count_sentences, average_sentence_length]
+agent = create_openai_functions_agent(llm, tools, prompt)
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+# Testa
+text = "Detta är en text. Den har tre meningar. Ganska kort!"
+result = agent_executor.invoke({"input": f"Analysera denna text: {text}"})
+print(result)
+
+# Rader kod: ~30 (exkl imports)
+# Fördelar: Färdigt, många features, bra för komplex logic
+# Nackdelar: Abstraktion kan göra debugging svårt
+```
+
+**B) Direkt OpenAI API:**
+
+```python
+from openai import OpenAI
+import json
+
+client = OpenAI()
+
+def count_words(text: str) -> int:
+    return len(text.split())
+
+def count_sentences(text: str) -> int:
+    return text.count('.') + text.count('!') + text.count('?')
+
+def average_sentence_length(text: str) -> float:
+    words = len(text.split())
+    sentences = text.count('.') + text.count('!') + text.count('?')
+    return round(words / sentences if sentences > 0 else 0, 2)
+
+tools = [{
+    "type": "function",
+    "function": {
+        "name": "count_words",
+        "description": "Räknar ord",
+        "parameters": {
+            "type": "object",
+            "properties": {"text": {"type": "string"}},
+            "required": ["text"]
+        }
+    }
+}, {
+    "type": "function",
+    "function": {
+        "name": "count_sentences",
+        "description": "Räknar meningar",
+        "parameters": {
+            "type": "object",
+            "properties": {"text": {"type": "string"}},
+            "required": ["text"]
+        }
+    }
+}, {
+    "type": "function",
+    "function": {
+        "name": "average_sentence_length",
+        "description": "Genomsnittlig meningslängd",
+        "parameters": {
+            "type": "object",
+            "properties": {"text": {"type": "string"}},
+            "required": ["text"]
+        }
+    }
+}]
+
+def analyze_text(text: str):
+    messages = [
+        {"role": "system", "content": "Du analyserar text statistik."},
+        {"role": "user", "content": f"Analysera: {text}"}
+    ]
+
+    while True:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            tools=tools
+        )
+
+        msg = response.choices[0].message
+        messages.append(msg)
+
+        if not msg.tool_calls:
+            return msg.content
+
+        for tc in msg.tool_calls:
+            args = json.loads(tc.function.arguments)
+
+            if tc.function.name == "count_words":
+                result = count_words(args["text"])
+            elif tc.function.name == "count_sentences":
+                result = count_sentences(args["text"])
+            elif tc.function.name == "average_sentence_length":
+                result = average_sentence_length(args["text"])
+
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": str(result)
+            })
+
+text = "Detta är en text. Den har tre meningar. Ganska kort!"
+result = analyze_text(text)
+print(result)
+
+# Rader kod: ~70 (exkl imports)
+# Fördelar: Full kontroll, lätt att debugga, inga dependencies
+# Nackdelar: Mer boilerplate, måste hantera allt själv
+```
+
+**Jämförelse:**
+
+| Aspekt | LangChain | Direkt API |
+|--------|-----------|------------|
+| **Rader kod** | ~30 | ~70 |
+| **Läsbarhet** | Hög (om du kan LangChain) | Medel |
+| **Kontroll** | Låg (abstraktion) | Hög |
+| **Debugging** | Svårare | Lättare |
+| **Dependencies** | Många | Inga (bara openai) |
+| **Production** | Bra för scaling | Bra för custom needs |
+
+**Slutsats:**
+- **Använd LangChain** om: Du bygger snabbt, vill ha batteries-included features
+- **Använd Direct API** om: Du behöver full kontroll, minimala dependencies, eller lär dig grunderna
+
+</details>
+
+---
+
+**[Fortsättning följer i Nivå 3b...]**
+
+---
+
+
