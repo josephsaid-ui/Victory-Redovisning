@@ -162,13 +162,13 @@ Välj din startpunkt:
 - 🚀 6 fullständiga projekt
 - 🛠️ 15+ verktyg och plattformar
 
-**Uppdaterad:** Januari 2025 med senaste verktygen och best practices.
+**Uppdaterad:** November 2025 med senaste verktygen och best practices.
 
 ---
 
-## 🆕 Vad är nytt Q1 2025?
+## 🆕 Vad är nytt 2025?
 
-### Stora förändringar i AI-agent landskapet:
+### Stora förändringar i AI-agent landskapet (baserat på kunskapsläge januari 2025):
 
 **🚀 Nya LLM:er med bättre pris/prestanda:**
 - **GPT-4o**: Ersätter GPT-4 Turbo som standard (75% billigare)

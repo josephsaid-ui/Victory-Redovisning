@@ -574,7 +574,7 @@ if estimate_cost(prompt) > 0.10:
 
 #### 1. Structured Outputs (OpenAI Native)
 
-**Nyhet januari 2025:** OpenAI har native structured outputs med JSON Schema - mer tillförlitligt än function calling.
+**Nyhet 2025:** OpenAI har native structured outputs med JSON Schema - mer tillförlitligt än function calling.
 
 ```python
 from openai import OpenAI

@@ -74,7 +74,7 @@ Kan du koda?
 
 ---
 
-### Cost Comparison (per 1M tokens) - Uppdaterad Januari 2025
+### Cost Comparison (per 1M tokens) - Uppdaterad November 2025
 
 | LLM | Input | Output | Context | Sweet spot |
 |-----|-------|--------|---------|------------|
