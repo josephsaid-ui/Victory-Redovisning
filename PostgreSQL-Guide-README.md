@@ -30,8 +30,9 @@ Guiden är uppbyggd med progressiv svårighetsgrad där varje nivå bygger på d
 | **3** | 🎓 Gymnasiet - Kom igång med riktig PostgreSQL | Praktisk användning | ~20 min | [PostgreSQL-Guide-Nivå-3.md](./PostgreSQL-Guide-Nivå-3.md) |
 | **4** | 🏛️ Universitetsnivå - Avancerade koncept | Teoretisk fördjupning | ~25 min | [PostgreSQL-Guide-Nivå-4.md](./PostgreSQL-Guide-Nivå-4.md) |
 | **5** | 💼 Expert - PostgreSQL på masternivå | Produktionsklar expert | ~30 min | [PostgreSQL-Guide-Nivå-5.md](./PostgreSQL-Guide-Nivå-5.md) |
+| **BONUS** | 🤖 RAG & Vector Search med pgvector | AI & PostgreSQL | ~35 min | [PostgreSQL-Guide-Bonus-RAG-pgvector.md](./PostgreSQL-Guide-Bonus-RAG-pgvector.md) |
 
-**Total läsningstid**: Cirka 1.5-3 timmar (beroende på ditt tempo och övningar)
+**Total läsningstid**: Cirka 2-3.5 timmar (inkl. bonuskapitel)
 
 ---
 
@@ -76,6 +77,17 @@ Guiden är uppbyggd med progressiv svårighetsgrad där varje nivå bygger på d
 - **Prestandatuning** för produktion
 - Modern arkitektur (Next.js, microservices)
 - **5-10 övningar** + verkliga case studies
+
+### Bonuskapitel: RAG & Vector Search (🤖 AI & PostgreSQL)
+- **RAG** (Retrieval-Augmented Generation) - Vad det är och hur det fungerar
+- **Vector embeddings** och semantic search
+- **pgvector** - PostgreSQL som vector database
+- **Indexering** (HNSW, IVFFlat) för prestanda
+- **Komplett RAG-implementation** med Python/Node.js
+- **Hybrid search** (keyword + vector)
+- **Jämförelse**: pgvector vs. Pinecone vs. Weaviate vs. Qdrant
+- Verkliga case studies och produktionsexempel
+- **5 övningar** med AI och embeddings
 
 ---
 
@@ -197,6 +209,16 @@ Varje nivå innehåller:
 ✅ Optimera för produktion
 ✅ Integrera PostgreSQL i moderna arkitekturer
 
+### Efter Bonuskapitel (RAG & pgvector):
+✅ Förstå RAG och hur det kombinerar databassökning med AI
+✅ Implementera semantic search med vector embeddings
+✅ Installera och konfigurera pgvector
+✅ Skapa och optimera vector-tabeller med HNSW-index
+✅ Bygga komplett RAG-pipeline från chunking till LLM
+✅ Implementera hybrid search (keyword + vector)
+✅ Jämföra och välja rätt vector database för ditt projekt
+✅ Integrera pgvector med Next.js, FastAPI och moderna AI-stacks
+
 ---
 
 ## 💎 Unika funktioner i denna guide
@@ -244,6 +266,9 @@ Efter att ha gått igenom denna guide kan du bygga:
 - **APIs**: RESTful med PostgREST eller GraphQL
 - **Microservices**: Med delad eller distribuerad PostgreSQL
 - **Real-time-appar**: Med logical replication
+- **AI-applikationer**: RAG-system, semantic search, chatbots med pgvector
+- **Kunskapsbaser**: Intelligenta söksystem med vector embeddings
+- **Rekommendationssystem**: Product discovery med hybrid search
 
 ---
 
@@ -337,16 +362,17 @@ Denna guide är skapad för utbildningsändamål. Du är välkommen att:
 
 ```
 Victory-Redovisning/
-├── PostgreSQL-Guide-README.md          ← Du är här!
-├── PostgreSQL-Guide-Nivå-1.md          (10 min läsning)
-├── PostgreSQL-Guide-Nivå-2.md          (15 min läsning)
-├── PostgreSQL-Guide-Nivå-3.md          (20 min läsning)
-├── PostgreSQL-Guide-Nivå-4.md          (25 min läsning)
-└── PostgreSQL-Guide-Nivå-5.md          (30 min läsning)
+├── PostgreSQL-Guide-README.md                  ← Du är här!
+├── PostgreSQL-Guide-Nivå-1.md                  (10 min läsning)
+├── PostgreSQL-Guide-Nivå-2.md                  (15 min läsning)
+├── PostgreSQL-Guide-Nivå-3.md                  (20 min läsning)
+├── PostgreSQL-Guide-Nivå-4.md                  (25 min läsning)
+├── PostgreSQL-Guide-Nivå-5.md                  (30 min läsning)
+└── PostgreSQL-Guide-Bonus-RAG-pgvector.md      (35 min läsning) 🆕
 ```
 
-**Total tid**: ~1.5-3 timmar
-**Total längd**: ~8,500 ord (alla nivåer kombinerat)
+**Total tid**: ~2-3.5 timmar (inkl. bonuskapitel)
+**Total längd**: ~12,000 ord (alla nivåer + bonus kombinerat)
 
 ---
 
@@ -360,6 +386,7 @@ Victory-Redovisning/
 5. Bygg ett enkelt projekt
 6. Nivå 4 (avancerade koncept)
 7. Nivå 5 (expert-nivå)
+8. Bonuskapitel (om du vill bygga AI-appar)
 
 ### För erfarna utvecklare (nya på PostgreSQL):
 1. Snabbläs Nivå 1-2
@@ -367,6 +394,13 @@ Victory-Redovisning/
 3. Nivå 3 (fokusera på PostgreSQL-specifika features)
 4. Nivå 4 (transaktioner, index, optimering)
 5. Nivå 5 (produktionsfunktioner)
+6. Bonuskapitel (RAG och pgvector för AI-integration)
+
+### För AI/ML-utvecklare som vill använda PostgreSQL:
+1. Snabbläs Nivå 1-2 (grundläggande databaskoncept)
+2. Nivå 3 (installation och grundläggande SQL)
+3. Hoppa till Bonuskapitel (RAG & pgvector)
+4. Gå tillbaka till Nivå 4-5 vid behov (optimering, avancerade features)
 
 ### Som referensmaterial:
 - Använd nivåerna som uppslagsverk
