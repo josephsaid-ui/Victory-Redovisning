@@ -5695,6 +5695,1227 @@ res.cookie('__Host-session', sessionId, {
 
 ---
 
+
+---
+
+## BONUSKAPITEL: Säkerhetstestning av Cookies med OWASP ZAP 🔍
+
+**Läsningstid:** 30-40 minuter
+**Nivå:** Avancerad till Expert
+**Förkunskaper:** Nivå 4-5 (säkerhetskunskap)
+
+### Introduktion
+
+Nu när du förstår cookie-säkerhet i teori är det dags att lära dig hur man **testar** det i praktiken. OWASP ZAP (Zed Attack Proxy) är världens mest populära open-source säkerhetstestverktyg för webbapplikationer. Det används av penetrationstestare, bug bounty hunters och utvecklare över hela världen.
+
+**I detta bonuskapitel kommer du att lära dig:**
+- Installera och konfigurera OWASP ZAP
+- Testa cookies för säkerhetsbrister (HttpOnly, Secure, SameSite)
+- Köra automatiserade scans
+- Utföra manuell penetrationstesting
+- Fuzzing och brute-force attacker på cookies
+- Generera professionella säkerhetsrapporter
+- Praktiska labs med verkliga sårbarheter
+
+---
+
+### 6.1 Vad är OWASP ZAP?
+
+**OWASP ZAP (Zed Attack Proxy)** är ett open-source säkerhetsverktyg som fungerar som en "man-in-the-middle" proxy mellan din webbläsare och webbservern.
+
+**Hur det fungerar:**
+
+```
+Browser ←→ ZAP Proxy ←→ Web Server
+
+ZAP interceptar ALL trafik och kan:
+- Inspektera requests och responses
+- Modifiera data i realtid
+- Identifiera säkerhetsbrister automatiskt
+- Simulera attacker
+- Generera rapporter
+```
+
+**Huvudfunktioner:**
+
+| Funktion | Beskrivning |
+|----------|-------------|
+| **Passive Scanning** | Analyserar trafik utan att ändra den |
+| **Active Scanning** | Skickar testattacker för att hitta sårbarheter |
+| **Spider** | Crawlar webbplatsen och kartlägger alla sidor |
+| **Fuzzer** | Testar med tusentals inputs för att hitta sårbarheter |
+| **Forced Browse** | Hittar dolda filer och directories |
+| **Manual Testing** | Intercepta och modifiera requests manuellt |
+| **API Testing** | Testar REST/SOAP APIs |
+| **Reporting** | Genererar professionella säkerhetsrapporter |
+
+**Varför ZAP för cookie-testning?**
+
+ZAP har specialiserade scanners för cookies:
+- ✅ Cookie Without HttpOnly Flag
+- ✅ Cookie Without Secure Flag
+- ✅ Cookie Without SameSite Attribute
+- ✅ Cookie Loosely Scoped
+- ✅ Cookie Poisoning
+- ✅ Session Fixation
+
+---
+
+### 6.2 Installation och Setup
+
+#### 6.2.1 Installera ZAP
+
+**Option 1: Download från officiella sidan**
+
+```bash
+# Besök: https://www.zaproxy.org/download/
+# Välj version för ditt OS:
+# - Windows: .exe installer
+# - macOS: .dmg installer
+# - Linux: .sh installer eller snap
+```
+
+**Option 2: Docker (Rekommenderat för CI/CD)**
+
+```bash
+# Pull latest ZAP image
+docker pull ghcr.io/zaproxy/zaproxy:stable
+
+# Run ZAP i headless mode
+docker run -u zap -p 8080:8080 -i ghcr.io/zaproxy/zaproxy:stable zap-webswing.sh
+
+# Access ZAP web UI på http://localhost:8080/zap
+```
+
+**Option 3: Package managers**
+
+```bash
+# Snap (Linux)
+sudo snap install zaproxy --classic
+
+# Homebrew (macOS)
+brew install --cask owasp-zap
+
+# Chocolatey (Windows)
+choco install zap
+```
+
+#### 6.2.2 Första starten
+
+1. **Starta ZAP**
+2. **Välj Session Type:**
+   - "Persist Session" - Spara resultat
+   - "No, I do not want to persist this session" - Temporär testing
+
+3. **API Key Setup (viktigt!):**
+   ```
+   Tools → Options → API
+   - Generera nytt API key
+   - Aktivera "Use API key"
+   ```
+
+4. **Konfigurera Browser Proxy:**
+
+   **Firefox (Rekommenderat):**
+   ```
+   Settings → Network Settings → Manual proxy configuration
+   HTTP Proxy: localhost
+   Port: 8080
+   ✓ Also use this proxy for HTTPS
+   ✓ DNS over HTTPS = OFF
+   ```
+
+   **Chrome:**
+   ```bash
+   # Starta Chrome med proxy
+   google-chrome --proxy-server=http://localhost:8080 --ignore-certificate-errors
+   ```
+
+5. **Installera ZAP Root CA Certificate:**
+
+   ```
+   Tools → Options → Dynamic SSL Certificates
+   → Save (spara rootCA.crt)
+
+   Importera i browser:
+   Firefox: Settings → Privacy & Security → Certificates → Import
+   Chrome: Settings → Security → Manage certificates → Import
+   ```
+
+---
+
+### 6.3 Cookie Security Testing: Step-by-Step
+
+#### 6.3.1 Skapa en Test Target
+
+Först behöver vi en sårbar app att testa. Vi använder OWASP Juice Shop.
+
+**Starta Juice Shop:**
+
+```bash
+# Docker
+docker run -p 3000:3000 bkimminich/juice-shop
+
+# Access på http://localhost:3000
+```
+
+**Alternativt: Skapa egen sårbar test-app:**
+
+```javascript
+// vulnerable-cookie-app.js
+const express = require('express');
+const cookieParser = require('cookie-parser');
+const app = express();
+
+app.use(cookieParser());
+
+// ❌ SÅRBAR: Ingen HttpOnly, ingen Secure, ingen SameSite
+app.get('/login-bad', (req, res) => {
+  res.cookie('sessionId', 'abc123-vulnerable-cookie', {
+    maxAge: 3600000
+  });
+  res.send('Logged in with INSECURE cookie!');
+});
+
+// ✅ SÄKER: Alla security flags
+app.get('/login-good', (req, res) => {
+  res.cookie('__Host-sessionId', 'xyz789-secure-cookie', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 3600000
+  });
+  res.send('Logged in with SECURE cookie!');
+});
+
+// ❌ SÅRBAR: Cookie loosely scoped
+app.get('/login-scoped', (req, res) => {
+  res.cookie('session', 'scoped-cookie', {
+    domain: '.example.com', // Tillgänglig för alla subdomäner!
+    httpOnly: true,
+    secure: true
+  });
+  res.send('Logged in with loosely scoped cookie!');
+});
+
+app.listen(3000, () => {
+  console.log('Vulnerable app running on http://localhost:3000');
+});
+```
+
+#### 6.3.2 Passive Scanning: Automatisk Cookie-analys
+
+**Steg 1: Konfigurera Target**
+
+```
+1. I ZAP, gå till "Quick Start" tab
+2. URL to attack: http://localhost:3000
+3. Klicka "Attack"
+```
+
+**Steg 2: Browse applikationen**
+
+```
+1. I din proxied browser, besök http://localhost:3000
+2. Logga in, navigera runt
+3. ZAP interceptar automatiskt all trafik
+```
+
+**Steg 3: Analysera Cookies i ZAP**
+
+```
+ZAP → Information → Params tab → Select site
+→ Cookie-listan visar ALLA cookies med flags:
+
+Column view:
+┌─────────────┬───────┬────────┬──────────┬────────┬──────┬─────┐
+│ Name        │ Value │ Domain │ Path     │ Secure │ HTTP │ Same│
+├─────────────┼───────┼────────┼──────────┼────────┼──────┼─────┤
+│ sessionId   │ abc.. │ local..│ /        │ ❌     │ ❌   │ ❌  │
+│ __Host-sess │ xyz.. │ local..│ /        │ ✅     │ ✅   │ Str │
+└─────────────┴───────┴────────┴──────────┴────────┴──────┴─────┘
+```
+
+**Steg 4: Granska Alerts**
+
+```
+ZAP → Alerts tab
+
+Du kommer se alerts som:
+╔══════════════════════════════════════════════════╗
+║ 🔴 Cookie No HttpOnly Flag                      ║
+╠══════════════════════════════════════════════════╣
+║ Risk: Low                                        ║
+║ Confidence: Medium                               ║
+║                                                  ║
+║ Description:                                     ║
+║ A cookie has been set without the HttpOnly      ║
+║ flag, which means that the cookie can be        ║
+║ accessed by JavaScript.                          ║
+║                                                  ║
+║ URL: http://localhost:3000/login-bad            ║
+║ Cookie: sessionId=abc123-vulnerable-cookie      ║
+║                                                  ║
+║ Solution:                                        ║
+║ Ensure that the HttpOnly flag is set for all    ║
+║ cookies.                                         ║
+╚══════════════════════════════════════════════════╝
+
+╔══════════════════════════════════════════════════╗
+║ 🔴 Cookie Without Secure Flag                   ║
+╠══════════════════════════════════════════════════╣
+║ Risk: Low                                        ║
+║ Confidence: Medium                               ║
+║                                                  ║
+║ Description:                                     ║
+║ A cookie has been set without the secure flag,  ║
+║ which means that the cookie can be accessed via ║
+║ unencrypted connections.                         ║
+║                                                  ║
+║ Solution:                                        ║
+║ Whenever a cookie contains sensitive information║
+║ or is a session token, then it should always be ║
+║ passed using an encrypted channel. Set the      ║
+║ Secure flag on all cookies.                     ║
+╚══════════════════════════════════════════════════╝
+```
+
+**Steg 5: Installera Cookie SameSite Scanner (Alpha)**
+
+```
+ZAP → Manage Add-ons → Marketplace
+→ Sök "Cookie"
+→ Installera "Passive scanner - Cookie without SameSite Attribute"
+→ Restart ZAP
+
+Efter omstart kommer ZAP också att rapportera:
+╔══════════════════════════════════════════════════╗
+║ 🟡 Cookie Without SameSite Attribute            ║
+╠══════════════════════════════════════════════════╣
+║ Risk: Low                                        ║
+║ Confidence: Medium                               ║
+║                                                  ║
+║ Description:                                     ║
+║ A cookie has been set without the SameSite      ║
+║ attribute, which means that the cookie can be   ║
+║ sent as a result of a 'cross-site' request.     ║
+║                                                  ║
+║ Solution:                                        ║
+║ Set the SameSite attribute to 'Lax' or 'Strict'.║
+╚══════════════════════════════════════════════════╝
+```
+
+#### 6.3.3 Active Scanning: Aggressiv Cookie-testning
+
+Active scanning skickar faktiska attacker mot applikationen.
+
+**⚠️ VARNING:** Kör ENDAST på applikationer du äger eller har tillstånd att testa!
+
+**Steg 1: Konfigurera Active Scanner**
+
+```
+Tools → Options → Active Scan
+
+Input Vectors:
+✓ Cookie
+✓ URL Query String
+✓ POST data
+✓ HTTP Headers
+
+Tekniker att aktivera:
+✓ SQL Injection
+✓ XSS (Reflected)
+✓ Path Traversal
+✓ Session Fixation
+```
+
+**Steg 2: Starta Active Scan**
+
+```
+1. Högerklicka på target i Sites tree
+2. Attack → Active Scan
+3. Välj "Recurse" för att scanna alla sidor
+4. Klicka "Start Scan"
+
+ZAP kommer nu att:
+- Skicka hundratals test-requests
+- Försöka XSS i cookies
+- Testa SQL injection i cookie values
+- Kontrollera session fixation
+- Fuzzing av cookie parameters
+```
+
+**Steg 3: Analysera Resultat**
+
+```
+Active Scan tab visar progress:
+╔═══════════════════════════════════════════════════╗
+║ Active Scan Progress                              ║
+╠═══════════════════════════════════════════════════╣
+║ Requests sent: 1247                               ║
+║ Duration: 00:03:42                                ║
+║ Requests/sec: 5.6                                 ║
+║                                                   ║
+║ Alerts found:                                     ║
+║ 🔴 High: 2                                        ║
+║ 🟠 Medium: 5                                      ║
+║ 🟡 Low: 12                                        ║
+║ ℹ️  Info: 8                                       ║
+╚═══════════════════════════════════════════════════╝
+```
+
+**Exempel på Active Scan Alert:**
+
+```
+╔══════════════════════════════════════════════════╗
+║ 🔴 Cookie Poisoning                              ║
+╠══════════════════════════════════════════════════╣
+║ Risk: High                                       ║
+║ Confidence: Medium                               ║
+║                                                  ║
+║ Description:                                     ║
+║ This check looks at user-supplied input in      ║
+║ cookie parameters to try to identify any cross- ║
+║ site scripting vulnerabilities.                  ║
+║                                                  ║
+║ Evidence:                                        ║
+║ Injected: </script><script>alert(1)</script>    ║
+║ Response contained: <script>alert(1)</script>   ║
+║                                                  ║
+║ Solution:                                        ║
+║ Do not trust client side input, even if there   ║
+║ is client side validation. Encode all user      ║
+║ supplied input.                                  ║
+╚══════════════════════════════════════════════════╝
+```
+
+---
+
+### 6.4 Manuell Cookie Testing med ZAP
+
+Ibland behöver du testa specifika scenarier manuellt.
+
+#### 6.4.1 Intercepting Requests (Break Points)
+
+**Scenario:** Testa om applikationen validerar cookie-värden.
+
+**Steg 1: Aktivera Break Points**
+
+```
+1. ZAP → Top toolbar → Klicka "Set break on all requests" (paus-ikon)
+2. I browser, navigera till http://localhost:3000/profile
+3. ZAP kommer att intercepta requesten
+```
+
+**Steg 2: Modifiera Cookie**
+
+```
+I ZAP Break tab:
+
+Request Headers:
+GET /profile HTTP/1.1
+Host: localhost:3000
+Cookie: sessionId=abc123-valid-session    ← EDIT THIS
+
+Testa olika saker:
+1. Ändra till sessionId=hacked-value
+2. Ändra till sessionId=' OR 1=1--
+3. Ändra till sessionId=<script>alert(1)</script>
+4. Ändra till sessionId=../../etc/passwd
+5. Ta bort cookien helt
+
+Klicka "Submit and continue to next breakpoint"
+```
+
+**Steg 3: Analysera Response**
+
+```
+Om applikationen INTE validerar:
+HTTP/1.1 200 OK
+Set-Cookie: sessionId=hacked-value  ← Server accepterade ogiltig cookie!
+
+Om applikationen validerar korrekt:
+HTTP/1.1 401 Unauthorized
+{"error": "Invalid session"}  ← Bra!
+```
+
+#### 6.4.2 Manual Request Editor
+
+För mer kontroll, använd Manual Request Editor.
+
+```
+1. Högerklicka på en request i History tab
+2. "Open/Resend with Request Editor"
+
+Editors:
+┌─────────────────────────────────────────────┐
+│ [ Request ] [ Response ]                    │
+├─────────────────────────────────────────────┤
+│ Method: [GET ▼] URL: /api/user/profile     │
+├─────────────────────────────────────────────┤
+│ Headers:                                    │
+│ Host: localhost:3000                        │
+│ Cookie: sessionId=MODIFY_THIS               │
+│ User-Agent: Mozilla/5.0...                  │
+├─────────────────────────────────────────────┤
+│ Body:                                       │
+│ (empty for GET)                             │
+├─────────────────────────────────────────────┤
+│           [ Send ]  [ Clear ]               │
+└─────────────────────────────────────────────┘
+
+Exempel tester:
+1. XSS i cookie: sessionId=<img src=x onerror=alert(1)>
+2. SQL injection: sessionId=' UNION SELECT * FROM users--
+3. Path traversal: sessionId=../../../etc/passwd
+4. Buffer overflow: sessionId=AAAA... (10000 A's)
+5. Null byte: sessionId=abc%00.jpg
+```
+
+#### 6.4.3 Testing Session Fixation
+
+**Scenario:** Testa om applikationen regenererar session-ID vid login.
+
+**Steg 1: Logga request flow**
+
+```
+1. Clearar ZAP history (Sites → Right-click → Delete)
+2. I browser: Logout från appen
+3. Notera session cookie INNAN login
+4. Logga in
+5. Notera session cookie EFTER login
+```
+
+**Steg 2: Analysera i ZAP**
+
+```
+Sites → localhost:3000 → History tab
+
+Sekvens:
+┌────┬─────────────────┬────────────────────────────┐
+│ #  │ URL             │ Cookie                     │
+├────┼─────────────────┼────────────────────────────┤
+│ 1  │ GET /login      │ -none-                     │
+│ 2  │ POST /login     │ -none-                     │
+│    │                 │ Response Set-Cookie:       │
+│    │                 │   sessionId=pre-login-123  │ ← Before auth
+│ 3  │ GET /dashboard  │ sessionId=pre-login-123    │
+└────┴─────────────────┴────────────────────────────┘
+
+❌ SÅRBAR: Session ID samma före och efter login!
+   → Session Fixation vulnerability
+
+Säker implementation:
+┌────┬─────────────────┬────────────────────────────┐
+│ 1  │ GET /login      │ -none-                     │
+│ 2  │ POST /login     │ -none-                     │
+│    │                 │ Response Set-Cookie:       │
+│    │                 │   sessionId=NEW-ID-xyz789  │ ← Regenerated!
+│ 3  │ GET /dashboard  │ sessionId=NEW-ID-xyz789    │
+└────┴─────────────────┴────────────────────────────┘
+
+✅ SÄKER: Nytt session ID efter autentisering
+```
+
+---
+
+### 6.5 Fuzzing Cookies
+
+Fuzzing testar applikationen med tusentals oväntade inputs.
+
+#### 6.5.1 Basic Fuzzing
+
+**Steg 1: Välj request att fuzza**
+
+```
+1. I History, högerklicka på en request med cookie
+2. Attack → Fuzz...
+```
+
+**Steg 2: Konfigurera Fuzzer**
+
+```
+Fuzzer dialog:
+
+Request:
+GET /api/profile HTTP/1.1
+Host: localhost:3000
+Cookie: sessionId=abc123      ← Highlight "abc123"
+
+Högerklicka på highlighted text → "Fuzz..."
+
+Add Payload dialog:
+┌─────────────────────────────────────────┐
+│ Type: [File ▼]                          │
+│ File: /path/to/fuzz-strings.txt         │
+│ OR                                      │
+│ Type: [Regex ▼]                         │
+│ Pattern: [0-9]{32}   (test GUIDs)      │
+│ OR                                      │
+│ Type: [Numberzz ▼]                      │
+│ From: 1                                 │
+│ To: 1000                                │
+└─────────────────────────────────────────┘
+
+Klicka "Add" → "Start Fuzzer"
+```
+
+**Steg 3: Analysera Fuzzing Results**
+
+```
+Fuzzer tab visar resultat:
+┌────┬─────────────────┬──────┬──────┬──────────┐
+│ #  │ Payload         │ Code │ Size │ RTT (ms) │
+├────┼─────────────────┼──────┼──────┼──────────┤
+│ 1  │ abc123          │ 200  │ 1234 │ 45       │ ← Original
+│ 2  │ 000000          │ 401  │ 56   │ 23       │
+│ 3  │ 111111          │ 401  │ 56   │ 25       │
+│ ...│ ...             │ ...  │ ...  │ ...      │
+│ 42 │ admin123        │ 200  │ 1234 │ 47       │ ← ⚠️ HIT!
+│ ...│ ...             │ ...  │ ...  │ ...      │
+└────┴─────────────────┴──────┴──────┴──────────┘
+
+Leta efter:
+- 200 responses (successful access med olika session)
+- Olika response sizes (indikerar olika content)
+- Error messages i response body
+```
+
+#### 6.5.2 Advanced Fuzzing: XSS & SQLi
+
+**XSS Fuzzing i Cookie:**
+
+```
+Använd ZAP's inbyggda XSS payloads:
+
+Add Payload → Type: File Fuzzers
+→ jbrofuzz → XSS → XSS.txt
+
+Payloads inkluderar:
+<script>alert(1)</script>
+<img src=x onerror=alert(1)>
+<svg/onload=alert(1)>
+';alert(String.fromCharCode(88,83,83))//
+"><script>alert(String.fromCharCode(88,83,83))</script>
+
+Efter fuzzing, analysera responses:
+1. Sök efter payload reflected i HTML
+2. Kontrollera om det escaped korrekt
+3. Test i browser om ZAP hittar potential XSS
+```
+
+**SQL Injection Fuzzing:**
+
+```
+Add Payload → Type: File Fuzzers
+→ jbrofuzz → SQL Injection → SQL Injection.txt
+
+Payloads:
+' OR 1=1--
+' UNION SELECT NULL--
+admin'--
+' OR 'a'='a
+1' AND '1'='1
+
+Tecken på SQLi:
+- SQL error messages i response
+- Olika response för 1=1 vs 1=2
+- Längre response time (indikerar DB query)
+```
+
+---
+
+### 6.6 Automatiserad Cookie-testning med ZAP API
+
+För CI/CD integration, använd ZAP's REST API.
+
+#### 6.6.1 ZAP API Basics
+
+**Start ZAP i daemon mode:**
+
+```bash
+# Start headless ZAP på port 8080
+zap.sh -daemon -port 8080 -config api.key=CHANGE-ME-12345
+
+# Eller Docker:
+docker run -u zap -p 8080:8080 -i ghcr.io/zaproxy/zaproxy:stable \
+  zap.sh -daemon -port 8080 -config api.key=CHANGE-ME-12345 \
+  -config api.addrs.addr.name=.* -config api.addrs.addr.regex=true
+```
+
+**Test API:**
+
+```bash
+# Health check
+curl "http://localhost:8080/JSON/core/view/version/?apikey=CHANGE-ME-12345"
+
+# Response:
+{"version":"2.14.0"}
+```
+
+#### 6.6.2 Automated Cookie Security Scan
+
+**Python script:**
+
+```python
+#!/usr/bin/env python3
+import requests
+import time
+import json
+
+ZAP_API_KEY = 'CHANGE-ME-12345'
+ZAP_URL = 'http://localhost:8080'
+TARGET = 'http://localhost:3000'
+
+def zap_api(endpoint, params={}):
+    """Call ZAP API"""
+    params['apikey'] = ZAP_API_KEY
+    response = requests.get(f'{ZAP_URL}/JSON/{endpoint}', params=params)
+    return response.json()
+
+def main():
+    print("[*] Starting Cookie Security Scan")
+
+    # 1. Access target (populate sites tree)
+    print(f"[*] Accessing target: {TARGET}")
+    zap_api('core/action/accessUrl', {'url': TARGET})
+    time.sleep(2)
+
+    # 2. Spider the target
+    print("[*] Spidering target...")
+    scan_id = zap_api('spider/action/scan', {'url': TARGET})['scan']
+
+    while int(zap_api('spider/view/status', {'scanId': scan_id})['status']) < 100:
+        print(f"    Spider progress: {zap_api('spider/view/status', {'scanId': scan_id})['status']}%")
+        time.sleep(2)
+
+    print("[+] Spider complete")
+
+    # 3. Passive scan (automatic on spider)
+    print("[*] Waiting for passive scan...")
+    while int(zap_api('pscan/view/recordsToScan')['recordsToScan']) > 0:
+        print(f"    Records to scan: {zap_api('pscan/view/recordsToScan')['recordsToScan']}")
+        time.sleep(2)
+
+    print("[+] Passive scan complete")
+
+    # 4. Get cookie-related alerts
+    print("\n[*] Cookie Security Issues Found:")
+    alerts = zap_api('core/view/alerts', {'baseurl': TARGET})
+
+    cookie_alerts = [a for a in alerts['alerts'] if 'cookie' in a['alert'].lower()]
+
+    if not cookie_alerts:
+        print("[+] No cookie security issues found!")
+        return
+
+    for alert in cookie_alerts:
+        print(f"\n{'='*60}")
+        print(f"🔴 {alert['alert']}")
+        print(f"Risk: {alert['risk']} | Confidence: {alert['confidence']}")
+        print(f"URL: {alert['url']}")
+        print(f"Description: {alert['description'][:200]}...")
+        print(f"Solution: {alert['solution'][:200]}...")
+
+    # 5. Generate HTML report
+    print("\n[*] Generating report...")
+    report = zap_api('core/other/htmlreport')
+
+    with open('cookie_security_report.html', 'wb') as f:
+        f.write(report.encode('utf-8'))
+
+    print("[+] Report saved to cookie_security_report.html")
+
+    # 6. Summary
+    print(f"\n{'='*60}")
+    print("SUMMARY")
+    print(f"{'='*60}")
+    print(f"Total alerts: {len(alerts['alerts'])}")
+    print(f"Cookie-related: {len(cookie_alerts)}")
+
+    # Count by risk
+    risks = {}
+    for alert in cookie_alerts:
+        risk = alert['risk']
+        risks[risk] = risks.get(risk, 0) + 1
+
+    for risk, count in risks.items():
+        print(f"{risk}: {count}")
+
+if __name__ == '__main__':
+    main()
+```
+
+**Run script:**
+
+```bash
+python3 cookie_security_scan.py
+
+# Output:
+[*] Starting Cookie Security Scan
+[*] Accessing target: http://localhost:3000
+[*] Spidering target...
+    Spider progress: 23%
+    Spider progress: 56%
+    Spider progress: 100%
+[+] Spider complete
+[*] Waiting for passive scan...
+    Records to scan: 42
+    Records to scan: 0
+[+] Passive scan complete
+
+[*] Cookie Security Issues Found:
+
+============================================================
+🔴 Cookie No HttpOnly Flag
+Risk: Low | Confidence: Medium
+URL: http://localhost:3000/login-bad
+Description: A cookie has been set without the HttpOnly flag, which means that the cookie can be accessed by JavaScript...
+Solution: Ensure that the HttpOnly flag is set for all cookies...
+
+============================================================
+🔴 Cookie Without Secure Flag
+Risk: Low | Confidence: Medium
+URL: http://localhost:3000/login-bad
+Description: A cookie has been set without the secure flag...
+Solution: Set the Secure flag on all cookies...
+
+[*] Generating report...
+[+] Report saved to cookie_security_report.html
+
+============================================================
+SUMMARY
+============================================================
+Total alerts: 15
+Cookie-related: 3
+Low: 3
+```
+
+#### 6.6.3 CI/CD Integration
+
+**GitHub Actions example:**
+
+```yaml
+# .github/workflows/security-scan.yml
+name: Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  zap-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Start application
+      run: |
+        docker-compose up -d
+        sleep 10  # Wait for app to start
+
+    - name: ZAP Cookie Scan
+      run: |
+        docker run -v $(pwd):/zap/wrk/:rw \
+          -t ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+          -t http://host.docker.internal:3000 \
+          -r cookie_scan_report.html \
+          -c cookie-scan-rules.conf
+
+    - name: Upload results
+      uses: actions/upload-artifact@v3
+      with:
+        name: zap-report
+        path: cookie_scan_report.html
+
+    - name: Check for High risks
+      run: |
+        if grep -q "Risk: High" cookie_scan_report.html; then
+          echo "High risk vulnerabilities found!"
+          exit 1
+        fi
+```
+
+**cookie-scan-rules.conf:**
+
+```
+# Enable cookie-specific scanners
+10010  # Cookie No HttpOnly Flag
+10011  # Cookie Without Secure Flag
+10054  # Cookie Without SameSite Attribute
+90033  # Loosely Scoped Cookie
+
+# Set alert thresholds
+-config rules.cookie.level=LOW
+```
+
+---
+
+### 6.7 Praktiska Labs
+
+#### Lab 1: Find and Fix Cookie Vulnerabilities
+
+**Mål:** Hitta och fixa alla cookie-sårbarheter i en app.
+
+**Setup:**
+
+```javascript
+// lab1-app.js
+const express = require('express');
+const app = express();
+
+// Challenge 1: Find the vulnerability
+app.get('/challenge1', (req, res) => {
+  res.cookie('session', 'user123', {
+    maxAge: 3600000
+  });
+  res.send('Challenge 1');
+});
+
+// Challenge 2: Find the vulnerability
+app.get('/challenge2', (req, res) => {
+  res.cookie('remember_me', 'true', {
+    domain: '.example.com',
+    maxAge: 30 * 24 * 60 * 60 * 1000
+  });
+  res.send('Challenge 2');
+});
+
+// Challenge 3: Find the vulnerability
+app.get('/challenge3', (req, res) => {
+  const userData = req.query.data;
+  res.cookie('user_data', userData, {
+    httpOnly: true,
+    secure: true
+  });
+  res.send('Challenge 3');
+});
+
+app.listen(3001, () => console.log('Lab running on :3001'));
+```
+
+**Uppgifter:**
+
+1. **Scan med ZAP:** Hitta alla sårbarheter
+2. **Identifiera:** Vad är fel med varje challenge?
+3. **Fixa:** Skriv säker version
+4. **Verifiera:** Scan igen, inga alerts
+
+<details>
+<summary><strong>Lösning</strong></summary>
+
+**Challenge 1 Problem:**
+- ❌ Ingen `HttpOnly`
+- ❌ Ingen `Secure`
+- ❌ Ingen `SameSite`
+
+**Fix:**
+```javascript
+res.cookie('session', 'user123', {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'strict',
+  maxAge: 3600000
+});
+```
+
+**Challenge 2 Problem:**
+- ❌ Loosely scoped (`.example.com` → alla subdomäner)
+- ❌ Lång livstid (30 dagar för remember-me är OK, men saknar security flags)
+
+**Fix:**
+```javascript
+res.cookie('__Host-remember_me', 'true', {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'strict',
+  path: '/',
+  // NO Domain!
+  maxAge: 30 * 24 * 60 * 60 * 1000
+});
+```
+
+**Challenge 3 Problem:**
+- ❌ Inga input validation! `req.query.data` kan innehålla XSS
+- Cookie name är inte prefix-protected
+
+**Fix:**
+```javascript
+const userData = req.query.data;
+
+// Validate input
+if (!userData || userData.length > 100 || !/^[a-zA-Z0-9]+$/.test(userData)) {
+  return res.status(400).send('Invalid data');
+}
+
+res.cookie('__Host-user_data', userData, {
+  httpOnly: true,
+  secure: true,
+  sameSite: 'strict',
+  path: '/'
+});
+```
+
+</details>
+
+---
+
+#### Lab 2: Cookie Fuzzing Challenge
+
+**Mål:** Hitta ett giltigt session-ID genom fuzzing.
+
+**Setup:**
+
+```javascript
+// lab2-app.js - Weak session ID generation
+const express = require('express');
+const app = express();
+
+// Weak PRNG - använder bara timestamp
+const sessions = new Set();
+for (let i = 0; i < 100; i++) {
+  const timestamp = Date.now() - Math.floor(Math.random() * 86400000); // Last 24h
+  const weakSessionId = `sess_${timestamp}`;
+  sessions.add(weakSessionId);
+}
+
+app.get('/admin', (req, res) => {
+  const sessionId = req.cookies.session;
+
+  if (sessions.has(sessionId)) {
+    res.send('🎉 ADMIN ACCESS GRANTED! Flag: CTF{weak_session_ids_are_bad}');
+  } else {
+    res.status(401).send('Unauthorized');
+  }
+});
+
+app.listen(3002);
+```
+
+**Uppgift:**
+
+Använd ZAP Fuzzer för att hitta ett giltigt session ID.
+
+<details>
+<summary><strong>Lösning</strong></summary>
+
+**Steg 1: Analysera pattern**
+
+Session IDs är i format: `sess_<timestamp>`
+
+**Steg 2: Fuzzing i ZAP**
+
+```
+1. Gör request till /admin med dummy cookie:
+   Cookie: session=sess_0
+
+2. Högerklicka → Fuzz
+
+3. Highlight "0" → Add Payload
+
+4. Type: Numberzz
+   From: [nuvarande timestamp - 86400000]  // 24h sedan
+   To: [nuvarande timestamp]
+   Increment: 1000  // Test varje sekund
+
+5. Start Fuzzer
+
+6. Leta efter 200 response!
+```
+
+**Resultat:**
+```
+Payload: sess_1700000000000 → 200 OK
+Response: 🎉 ADMIN ACCESS GRANTED!
+```
+
+**Lärdomar:**
+- ❌ Predictable session IDs är kritisk sårbarhet
+- ✅ Använd crypto.randomBytes() istället
+- ✅ Minst 128 bitar entropy
+
+</details>
+
+---
+
+### 6.8 Rapportering
+
+#### 6.8.1 Generera HTML Report
+
+```
+ZAP → Report → Generate HTML Report
+
+Report innehåller:
+- Executive Summary
+- Alert Details (grupperade per risk level)
+- Remediation advice
+- Appendix med methodology
+
+Spara som: cookie_security_report.html
+```
+
+#### 6.8.2 Custom Report Template
+
+För professionella rapporter, skapa egen template:
+
+```python
+import json
+from jinja2 import Template
+
+# Get alerts från ZAP API
+alerts = zap_api('core/view/alerts', {'baseurl': TARGET})
+
+# Template
+report_template = """
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cookie Security Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    .high { background: #ff4444; color: white; padding: 10px; }
+    .medium { background: #ff9944; color: white; padding: 10px; }
+    .low { background: #ffff44; padding: 10px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+  </style>
+</head>
+<body>
+  <h1>🍪 Cookie Security Assessment Report</h1>
+  <p><strong>Target:</strong> {{ target }}</p>
+  <p><strong>Date:</strong> {{ date }}</p>
+
+  <h2>Executive Summary</h2>
+  <p>Total Alerts: {{ total_alerts }}</p>
+  <ul>
+    <li>High: {{ high_count }}</li>
+    <li>Medium: {{ medium_count }}</li>
+    <li>Low: {{ low_count }}</li>
+  </ul>
+
+  <h2>Cookie-Specific Findings</h2>
+  <table>
+    <tr>
+      <th>Risk</th>
+      <th>Alert</th>
+      <th>URL</th>
+      <th>Cookie</th>
+    </tr>
+    {% for alert in cookie_alerts %}
+    <tr class="{{ alert.risk|lower }}">
+      <td>{{ alert.risk }}</td>
+      <td>{{ alert.alert }}</td>
+      <td>{{ alert.url }}</td>
+      <td><code>{{ alert.evidence }}</code></td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <h2>Recommendations</h2>
+  <ol>
+    <li>Set HttpOnly flag on all session cookies</li>
+    <li>Set Secure flag on all cookies (HTTPS required)</li>
+    <li>Implement SameSite=Strict or Lax</li>
+    <li>Use __Host- prefix for critical cookies</li>
+    <li>Implement proper session regeneration on login</li>
+  </ol>
+</body>
+</html>
+"""
+
+# Render
+template = Template(report_template)
+html = template.render(
+    target=TARGET,
+    date=datetime.now().strftime('%Y-%m-%d'),
+    total_alerts=len(alerts['alerts']),
+    high_count=len([a for a in alerts['alerts'] if a['risk'] == 'High']),
+    medium_count=len([a for a in alerts['alerts'] if a['risk'] == 'Medium']),
+    low_count=len([a for a in alerts['alerts'] if a['risk'] == 'Low']),
+    cookie_alerts=[a for a in alerts['alerts'] if 'cookie' in a['alert'].lower()]
+)
+
+with open('professional_cookie_report.html', 'w') as f:
+    f.write(html)
+```
+
+---
+
+### 6.9 Best Practices för ZAP Cookie Testing
+
+**✅ DO:**
+
+1. **Test i safe miljö först**
+   - Använd lokal dev environment
+   - Eller dedicated test server
+   - ALDRIG direkt på production
+
+2. **Använd både passive och active scans**
+   - Passive för snabb analys
+   - Active för djup penetration testing
+
+3. **Automatisera i CI/CD**
+   - ZAP baseline scan på varje commit
+   - Blocka deploy om High-risk sårbarheter hittas
+
+4. **Kombinera med andra verktyg**
+   - Burp Suite för manuell testing
+   - SQLMap för SQL injection
+   - XSStrike för XSS
+
+5. **Dokumentera findings**
+   - Generera rapporter
+   - Inkludera proof-of-concept
+   - Remediation steps
+
+**❌ DON'T:**
+
+1. **Scanna sites du inte äger** utan explicit tillstånd
+2. **Köra aggressive scans på production** (kan orsaka DoS)
+3. **Ignorera false positives** (verifiera alltid manuellt)
+4. **Lita blint på automated results** (manual review krävs)
+5. **Skippa rapportering** (ingen fix utan dokumentation)
+
+---
+
+### 6.10 Sammanfattning: ZAP Cookie Testing
+
+**Du har nu lärt dig:**
+
+✅ Installera och konfigurera OWASP ZAP
+✅ Passive scanning för cookie flags (HttpOnly, Secure, SameSite)
+✅ Active scanning för cookie vulnerabilities
+✅ Manuell intercepting och modifiering av cookies
+✅ Fuzzing för att hitta weak session IDs
+✅ Automatisering med ZAP API
+✅ CI/CD integration
+✅ Professionell rapportering
+
+**ZAP Cookie Scanners Summary:**
+
+| Scanner | Risk | Vad det testar |
+|---------|------|----------------|
+| Cookie No HttpOnly Flag | Low | HttpOnly attribute saknas |
+| Cookie Without Secure Flag | Low | Secure attribute saknas |
+| Cookie Without SameSite | Low | SameSite attribute saknas |
+| Cookie Loosely Scoped | Low | Domain satt till `.example.com` |
+| Cookie Poisoning | High | XSS/SQLi i cookie values |
+| Session Fixation | High | Session ID inte regenererat vid login |
+
+**Nästa steg:**
+
+1. **Praktisera:** Scanna dina egna projekt med ZAP
+2. **Fördjupa:** Läs [OWASP Web Security Testing Guide](https://owasp.org/www-project-web-security-testing-guide/)
+3. **Certifiering:** Överväg OSCP eller CEH för professionell pentesting
+4. **Bug Bounty:** Använd ZAP för att hitta sårbarheter på HackerOne/Bugcrowd
+
+**Kom ihåg:** Med stor makt följer stort ansvar. Använd ZAP etiskt och endast på system du har tillstånd att testa!
+
+---
 **Guide skriven:** 2025
 **Författare:** AI-genererad med senaste info från 2024-2025
 **Licensiering:** Fri att använda för utbildningsändamål
