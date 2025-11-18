@@ -3761,3 +3761,1037 @@ Använd alltid Frida:
 *Frida Version: 17.4.x*
 *Uppdaterad regelbundet*
 
+---
+
+# 🎁 BONUSNIVÅ: Kali Linux + Ghidra + Frida - Den Ultimata Triaden
+
+## 🎯 Introduktion
+
+Välkommen till bonusnivån! Här undersöker vi hur tre kraftfulla verktyg kombineras för professionell reverse engineering och säkerhetsanalys:
+
+- **Kali Linux**: Den kompletta säkerhetsplattformen
+- **Ghidra**: NSA:s statiska analysverktyg
+- **Frida**: Dynamisk instrumentering
+
+**Varför dessa tre tillsammans?**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              REVERSE ENGINEERING WORKFLOW                │
+└─────────────────────────────────────────────────────────┘
+
+    Kali Linux
+    ┌──────────────────────────────────────┐
+    │  Säker miljö för analys              │
+    │  Alla verktyg förinstallerade        │
+    │  Isolerad från produktion            │
+    └──────────────────────────────────────┘
+                    │
+        ┌───────────┴───────────┐
+        │                       │
+        ▼                       ▼
+
+    GHIDRA                  FRIDA
+    ┌──────────────┐       ┌──────────────┐
+    │ Statisk      │       │ Dynamisk     │
+    │ Analys       │◄─────►│ Analys       │
+    │              │       │              │
+    │ • Disassembly│       │ • Runtime    │
+    │ • Decompile  │       │ • Hooking    │
+    │ • CFG        │       │ • Tracing    │
+    └──────────────┘       └──────────────┘
+         │                       │
+         └───────────┬───────────┘
+                     ▼
+              Complete Picture
+              ┌──────────────┐
+              │ Funktionalitet
+              │ Sårbarheter
+              │ Lösenord/nycklar
+              │ Nätverkstrafik
+              └──────────────┘
+```
+
+**Workflow**:
+1. **Ghidra**: Statisk analys → hitta intressanta funktioner
+2. **Frida**: Dynamisk analys → verifiera beteende runtime
+3. **Ghidra**: Tillbaka för djupare förståelse
+4. **Frida**: Testa hypoteser live
+
+---
+
+## 🔧 Del 1: Installation och Setup på Kali Linux
+
+### Steg 1: Installera Kali Linux
+
+**Alternativ A: Virtuell Maskin (rekommenderat för övning)**
+
+```bash
+# Ladda ner från https://www.kali.org/get-kali/
+# Importera .ova-fil i VirtualBox/VMware
+```
+
+**Alternativ B: Dual Boot**
+
+```bash
+# Skapa bootbar USB med Rufus/Etcher
+# Installera från USB
+```
+
+**Alternativ C: WSL (Windows)**
+
+```bash
+# I Windows PowerShell (Admin)
+wsl --install -d kali-linux
+```
+
+### Steg 2: Uppdatera Kali
+
+```bash
+sudo apt update
+sudo apt upgrade -y
+sudo apt dist-upgrade -y
+```
+
+### Steg 3: Installera Ghidra
+
+```bash
+# Installera Java (Ghidra kräver JDK 17+)
+sudo apt install -y openjdk-17-jdk
+
+# Ladda ner Ghidra
+cd ~/Downloads
+wget https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_11.2_build/ghidra_11.2_PUBLIC_20250107.zip
+
+# Extrahera
+unzip ghidra_11.2_PUBLIC_20250107.zip -d ~/tools/
+cd ~/tools/ghidra_11.2_PUBLIC
+
+# Starta Ghidra
+./ghidraRun
+```
+
+**Alternativ: Via apt (äldre version)**
+
+```bash
+sudo apt install -y ghidra
+```
+
+### Steg 4: Installera Frida
+
+```bash
+# Python och pip
+sudo apt install -y python3-pip python3-dev
+
+# Frida
+sudo pip3 install frida-tools frida
+
+# Verifiera installation
+frida --version
+```
+
+### Steg 5: Installera Kompletterande Verktyg
+
+```bash
+# ADB för Android
+sudo apt install -y adb
+
+# Networking tools
+sudo apt install -y wireshark burpsuite
+
+# Binary analysis
+sudo apt install -y radare2 gdb
+
+# ghidra2frida bridge (viktigt!)
+pip3 install ghidra2frida
+```
+
+---
+
+## 🧪 Del 2: Första Integrerade Analysen
+
+### Scenario: Analysera Android APK
+
+**Mål**: Förstå och bypassa en Android app's autentisering
+
+#### Fas 1: Ghidra - Statisk Analys
+
+**Steg 1: Förbered APK**
+
+```bash
+# Extrahera APK
+mkdir analysis
+cd analysis
+unzip target-app.apk
+
+# Hitta DEX-filer
+ls *.dex
+# Output: classes.dex, classes2.dex
+```
+
+**Steg 2: Konvertera DEX till JAR för Ghidra**
+
+```bash
+# Installera dex2jar
+sudo apt install -y dex2jar
+
+# Konvertera
+d2j-dex2jar classes.dex
+# Output: classes-dex2jar.jar
+```
+
+**Steg 3: Öppna i Ghidra**
+
+```bash
+# Starta Ghidra
+ghidraRun &
+
+# I Ghidra:
+# File → Import File → classes-dex2jar.jar
+# Analyze → Yes (auto-analyze)
+```
+
+**Steg 4: Sök efter intressanta funktioner**
+
+I Ghidra's Symbol Tree:
+- Sök efter: `checkPassword`, `authenticate`, `validateUser`
+- Dubbelklicka på funktion för decompilation
+
+**Exempel på hittad funktion:**
+
+```java
+// Ghidra decompilation output
+public boolean checkPassword(String password) {
+    String correctPassword = getStoredPassword();
+    if (password.equals(correctPassword)) {
+        return true;
+    }
+    return false;
+}
+
+private String getStoredPassword() {
+    return Native.getEncryptedPassword();
+}
+```
+
+**Insikter från Ghidra:**
+- ✓ `checkPassword` finns i `com.target.app.AuthManager`
+- ✓ Anropar native metod `getEncryptedPassword`
+- ✓ Använder simple `equals()` jämförelse
+
+#### Fas 2: Frida - Dynamisk Verifiering
+
+**Steg 1: Starta app och Frida**
+
+```bash
+# Anslut Android device
+adb devices
+
+# Starta frida-server på device
+adb shell "su -c /data/local/tmp/frida-server &"
+
+# Lista processer
+frida-ps -Uai
+```
+
+**Steg 2: Hooka `checkPassword`**
+
+```bash
+frida -U -f com.target.app -l hook.js --no-pause
+```
+
+**hook.js:**
+
+```javascript
+Java.perform(function() {
+    console.log("[*] Starting hooks...");
+
+    // Hook checkPassword
+    var AuthManager = Java.use("com.target.app.AuthManager");
+
+    AuthManager.checkPassword.implementation = function(password) {
+        console.log("[+] checkPassword called!");
+        console.log("[+] Input password: " + password);
+
+        // Anropa original
+        var result = this.checkPassword(password);
+        console.log("[+] Original result: " + result);
+
+        // Logga getStoredPassword
+        var storedPw = this.getStoredPassword();
+        console.log("[!] Stored password: " + storedPw);
+
+        return result;
+    };
+
+    // Hook native funktion
+    var Native = Java.use("com.target.app.Native");
+
+    Native.getEncryptedPassword.implementation = function() {
+        var result = this.getEncryptedPassword();
+        console.log("[!] Native password: " + result);
+        return result;
+    };
+
+    console.log("[*] Hooks installed!");
+});
+```
+
+**Kör app och ange fel lösenord:**
+
+```
+[*] Starting hooks...
+[*] Hooks installed!
+[+] checkPassword called!
+[+] Input password: wrongpass
+[!] Native password: s3cr3tP@ssw0rd
+[!] Stored password: s3cr3tP@ssw0rd
+[+] Original result: false
+```
+
+**💎 Upptäckt: Lösenordet är `s3cr3tP@ssw0rd`**
+
+#### Fas 3: Tillbaka till Ghidra
+
+Nu när vi vet lösenordet, gå tillbaka till Ghidra:
+
+**Analysera `Native.getEncryptedPassword()`:**
+
+```bash
+# I Ghidra, sök efter native library
+# File → classes.dex → native-lib.so
+```
+
+**I Ghidra disassembly:**
+
+```c
+// Pseudo-code från native funktion
+char* Java_com_target_app_Native_getEncryptedPassword(JNIEnv *env, jobject obj) {
+    char *encrypted = "\x73\x33\x63\x72\x33\x74\x50\x40\x73\x73\x77\x30\x72\x64";
+    return (*env)->NewStringUTF(env, encrypted);
+}
+```
+
+**Insikt**: Lösenordet är hårdkodat i binären! (Dålig praxis)
+
+#### Fas 4: Frida - Bypassa helt
+
+Nu med fullständig förståelse, skriv bypass:
+
+```javascript
+Java.perform(function() {
+    var AuthManager = Java.use("com.target.app.AuthManager");
+
+    // Simpel bypass - returnera alltid true
+    AuthManager.checkPassword.implementation = function(password) {
+        console.log("[*] Bypassing authentication!");
+        return true;  // Alltid godkänd
+    };
+
+    console.log("[+] Authentication bypassed!");
+});
+```
+
+**Resultat**: Logga in med vilket lösenord som helst!
+
+---
+
+## 🔗 Del 3: ghidra2frida - Bron mellan verktygen
+
+**ghidra2frida** är en kraftfull integration som låter dig:
+- Exportera Ghidra-analys till Frida-script
+- Automatgenerera hooks från Ghidra-funktioner
+- Synkronisera mellan statisk och dynamisk analys
+
+### Installation
+
+```bash
+pip3 install ghidra2frida
+
+# Installera Ghidra-plugin
+cd ~/tools/ghidra_11.2_PUBLIC/Extensions
+git clone https://github.com/federicodotta/ghidra2frida.git
+```
+
+### Användning
+
+**I Ghidra:**
+
+1. Högerklicka på funktion → "Generate Frida Hook"
+2. Välj hook-typ (enter, leave, replace)
+3. Kopiera genererad JavaScript
+
+**Exempel:**
+
+Ghidra-funktion:
+```c
+int verify_license(char *key, int length)
+```
+
+Genererad Frida-hook:
+```javascript
+// Auto-generated by ghidra2frida
+Interceptor.attach(Module.findExportByName("libapp.so", "verify_license"), {
+    onEnter: function(args) {
+        console.log("[verify_license]");
+        console.log("  key: " + Memory.readUtf8String(args[0]));
+        console.log("  length: " + args[1]);
+    },
+    onLeave: function(retval) {
+        console.log("  return: " + retval);
+    }
+});
+```
+
+**Workflow:**
+
+```
+┌──────────────┐
+│   Ghidra     │
+│   Analys     │
+└──────┬───────┘
+       │ 1. Identifiera funktioner
+       │ 2. Förstå logik
+       │ 3. Märk intressanta delar
+       ▼
+┌──────────────┐
+│ ghidra2frida │
+│    Bridge    │
+└──────┬───────┘
+       │ 4. Generera hooks
+       │ 5. Exportera script
+       ▼
+┌──────────────┐
+│    Frida     │
+│   Runtime    │
+└──────┬───────┘
+       │ 6. Verifiera runtime
+       │ 7. Extrahera data
+       ▼
+┌──────────────┐
+│  Uppdatera   │
+│   förståelse │
+│  i Ghidra    │
+└──────────────┘
+```
+
+---
+
+## 💼 Del 4: Avancerade Use Cases
+
+### Use Case 1: Malware-analys
+
+**Scenario**: Analysera okänd Windows-binär
+
+**Kali Setup:**
+
+```bash
+# Installera Wine för Windows-binärer
+sudo apt install -y wine wine64
+
+# Installera PE-verktyg
+sudo apt install -y pev
+```
+
+**Workflow:**
+
+```bash
+# 1. Grundläggande PE-analys
+readpe malware.exe
+pescan malware.exe
+
+# 2. Ghidra statisk analys
+ghidraRun malware.exe
+
+# 3. Identifiera i Ghidra:
+#    - Entry point
+#    - Imported functions (CreateProcess, RegSetValue)
+#    - Strings (C2 server URLs)
+#    - Encrypted data
+
+# 4. Kör i Wine med Frida
+frida -f "wine malware.exe" -l malware_hooks.js
+```
+
+**malware_hooks.js:**
+
+```javascript
+// Hook dangerous Windows APIs
+Interceptor.attach(Module.findExportByName("kernel32.dll", "CreateProcessW"), {
+    onEnter: function(args) {
+        var cmdline = Memory.readUtf16String(args[1]);
+        console.log("[!] CreateProcess: " + cmdline);
+        send({type: "process_creation", cmdline: cmdline});
+    }
+});
+
+// Hook network connections
+Interceptor.attach(Module.findExportByName("ws2_32.dll", "connect"), {
+    onEnter: function(args) {
+        // Parse sockaddr structure
+        var sockaddr = args[1];
+        var port = Memory.readU16(sockaddr.add(2));
+        console.log("[!] Network connection to port: " + port);
+        send({type: "network", port: port});
+    }
+});
+
+// Hook registry modifications
+Interceptor.attach(Module.findExportByName("advapi32.dll", "RegSetValueExW"), {
+    onEnter: function(args) {
+        var valueName = Memory.readUtf16String(args[1]);
+        console.log("[!] Registry write: " + valueName);
+        send({type: "registry", value: valueName});
+    }
+});
+```
+
+**Python orchestration:**
+
+```python
+import frida
+import sys
+
+behavioral_log = []
+
+def on_message(message, data):
+    if message['type'] == 'send':
+        behavioral_log.append(message['payload'])
+        print(f"[Behavior] {message['payload']}")
+
+session = frida.attach("wine")
+
+with open("malware_hooks.js") as f:
+    script = session.create_script(f.read())
+
+script.on('message', on_message)
+script.load()
+
+# Låt malware köra i 60 sekunder
+import time
+time.sleep(60)
+
+# Generera rapport
+print("\n=== BEHAVIORAL REPORT ===")
+for event in behavioral_log:
+    print(f"- {event['type']}: {event}")
+```
+
+### Use Case 2: iOS App-analys
+
+**Setup:**
+
+```bash
+# Jailbroken iOS device krävs
+# Installera Frida på iOS via Cydia/Sileo
+
+# Anslut via USB
+iproxy 2222 22
+ssh root@localhost -p 2222
+
+# På iOS device
+apt install frida
+```
+
+**Workflow:**
+
+**1. Dumpa iOS app från device:**
+
+```bash
+# På Kali
+frida-ps -Uai | grep "Target App"
+
+# Dumpa decrypted binary
+bagbak --target-app com.target.app
+```
+
+**2. Ghidra-analys:**
+
+```bash
+# Importera decrypted IPA i Ghidra
+unzip target-app.ipa
+ghidraRun Payload/TargetApp.app/TargetApp
+```
+
+**3. Identifiera Objective-C klasser:**
+
+I Ghidra:
+- Sök efter `_OBJC_CLASS_$_`
+- Leta efter metoder: `+[Class method]`, `-[Class instance]`
+
+**4. Frida hooks:**
+
+```javascript
+// Hook Objective-C metod
+if (ObjC.available) {
+    var ViewController = ObjC.classes.ViewController;
+
+    Interceptor.attach(ViewController['- validatePurchase:'].implementation, {
+        onEnter: function(args) {
+            console.log("[*] validatePurchase called");
+            // args[0] = self
+            // args[1] = selector
+            // args[2] = första argument
+            var purchase = new ObjC.Object(args[2]);
+            console.log("[*] Purchase: " + purchase.toString());
+        },
+        onLeave: function(retval) {
+            console.log("[*] Original return: " + retval);
+            retval.replace(0x1);  // Ändra till true
+        }
+    });
+}
+```
+
+### Use Case 3: Automatiserad Säkerhetsaudit
+
+**Kombination av alla tre verktyg:**
+
+```python
+#!/usr/bin/env python3
+"""
+Automatiserad security audit pipeline
+Kali + Ghidra + Frida
+"""
+
+import subprocess
+import frida
+import json
+import os
+
+class SecurityAudit:
+    def __init__(self, apk_path):
+        self.apk_path = apk_path
+        self.results = {
+            'static': {},
+            'dynamic': {}
+        }
+
+    def static_analysis(self):
+        """Ghidra headless-analys"""
+        print("[*] Running Ghidra analysis...")
+
+        ghidra_cmd = [
+            "analyzeHeadless",
+            "/tmp/ghidra_projects",
+            "AuditProject",
+            "-import", self.apk_path,
+            "-postScript", "ExportFunctions.py",
+            "-scriptPath", "./ghidra_scripts"
+        ]
+
+        result = subprocess.run(ghidra_cmd, capture_output=True)
+
+        # Parse Ghidra output
+        with open("/tmp/ghidra_output.json") as f:
+            self.results['static'] = json.load(f)
+
+        return self.results['static']
+
+    def dynamic_analysis(self, package_name):
+        """Frida runtime-analys"""
+        print("[*] Running Frida analysis...")
+
+        device = frida.get_usb_device()
+        pid = device.spawn([package_name])
+        session = device.attach(pid)
+
+        with open("audit_hooks.js") as f:
+            script = session.create_script(f.read())
+
+        script.on('message', self.on_message)
+        script.load()
+        device.resume(pid)
+
+        # Kör app i 120 sekunder
+        import time
+        time.sleep(120)
+
+        return self.results['dynamic']
+
+    def on_message(self, message, data):
+        if message['type'] == 'send':
+            payload = message['payload']
+            category = payload.get('category', 'general')
+
+            if category not in self.results['dynamic']:
+                self.results['dynamic'][category] = []
+
+            self.results['dynamic'][category].append(payload)
+
+    def generate_report(self):
+        """Generera HTML-rapport"""
+        html = f"""
+        <html>
+        <head><title>Security Audit Report</title></head>
+        <body>
+            <h1>Security Audit: {os.path.basename(self.apk_path)}</h1>
+
+            <h2>Static Analysis (Ghidra)</h2>
+            <ul>
+                <li>Functions analyzed: {len(self.results['static'].get('functions', []))}</li>
+                <li>Vulnerabilities: {len(self.results['static'].get('vulns', []))}</li>
+            </ul>
+
+            <h2>Dynamic Analysis (Frida)</h2>
+            <ul>
+                <li>Network calls: {len(self.results['dynamic'].get('network', []))}</li>
+                <li>File operations: {len(self.results['dynamic'].get('file', []))}</li>
+                <li>Crypto operations: {len(self.results['dynamic'].get('crypto', []))}</li>
+            </ul>
+
+            <h2>Findings</h2>
+            {self.generate_findings()}
+        </body>
+        </html>
+        """
+
+        with open("audit_report.html", "w") as f:
+            f.write(html)
+
+        print("[+] Report generated: audit_report.html")
+
+    def generate_findings(self):
+        findings = []
+
+        # Check for hardcoded secrets (från Ghidra)
+        if 'hardcoded_strings' in self.results['static']:
+            for string in self.results['static']['hardcoded_strings']:
+                if any(keyword in string.lower() for keyword in ['password', 'api_key', 'secret']):
+                    findings.append(f"<li>⚠️ Hardcoded secret: {string}</li>")
+
+        # Check for insecure network (från Frida)
+        if 'network' in self.results['dynamic']:
+            for call in self.results['dynamic']['network']:
+                if call.get('protocol') == 'http':
+                    findings.append(f"<li>⚠️ Insecure HTTP: {call['url']}</li>")
+
+        return "<ul>" + "".join(findings) + "</ul>"
+
+# Användning
+if __name__ == "__main__":
+    audit = SecurityAudit("target-app.apk")
+
+    # Fas 1: Statisk analys
+    audit.static_analysis()
+
+    # Fas 2: Dynamisk analys
+    audit.dynamic_analysis("com.target.app")
+
+    # Fas 3: Rapport
+    audit.generate_report()
+```
+
+---
+
+## 🎯 Del 5: Best Practices
+
+### Workflow Best Practices
+
+**1. Börja alltid med statisk analys (Ghidra)**
+
+```
+Fördelar:
+✓ Snabbt - ingen runtime overhead
+✓ Komplett bild av all kod
+✓ Hitta low-hanging fruit (hardcoded secrets)
+✓ Planera Frida-hooks
+```
+
+**2. Använd Frida för verifiering**
+
+```
+Fördelar:
+✓ Se faktiskt beteende
+✓ Bypass obfuscation
+✓ Extrahera runtime-data
+✓ Testa hypoteser
+```
+
+**3. Iterera mellan båda**
+
+```
+Ghidra → Frida → Ghidra → Frida
+  │        │        │        │
+  │        │        │        └─ Slutgiltig bypass
+  │        │        └────────── Djupare analys
+  │        └─────────────────── Verifiera upptäckter
+  └──────────────────────────── Initial kartläggning
+```
+
+### Säkerhet i Kali-miljö
+
+**Isolering:**
+
+```bash
+# Kör analys i separat VM
+# ALDRIG på produktionssystem
+
+# Använd snapshots
+VBoxManage snapshot "Kali-Analysis" take "Clean State"
+
+# Network isolation
+iptables -A OUTPUT -j DROP  # Block all outbound för malware-analys
+```
+
+**Dokumentation:**
+
+```bash
+# Logga allt
+script analysis_session.log
+
+# Git för projekt
+git init malware-analysis-2025-01-15
+git add .
+git commit -m "Initial findings"
+```
+
+### Performance Tips
+
+**Ghidra:**
+
+```bash
+# Ge Ghidra mer minne
+# I ghidraRun script:
+MAXMEM=8G
+```
+
+**Frida:**
+
+```javascript
+// Undvik överflödiga hooks
+// BAD:
+Interceptor.attach(Module.findExportByName(null, "malloc"), ...);
+
+// GOOD: Specifika targets
+Interceptor.attach(Module.findExportByName("libapp.so", "sensitive_func"), ...);
+```
+
+---
+
+## 📝 Övningar
+
+### Övning 1: Grundläggande Integration
+
+**Mål**: Analysera en enkel Android APK
+
+**Steg**:
+1. Ladda ner övnings-APK: `https://github.com/OWASP/crackmes` (InsecureBankv2)
+2. Öppna i Ghidra och hitta `doLogin` metoden
+3. Skriv Frida-hook för att logga användarnamn/lösenord
+4. Bygg bypass baserat på Ghidra-analys
+
+**Lösning**:
+
+<details>
+<summary>Klicka för lösning</summary>
+
+```javascript
+Java.perform(function() {
+    var DoLogin = Java.use("com.android.insecurebankv2.DoLogin");
+
+    // Hook från Ghidra-analys
+    DoLogin.performLogin.implementation = function(username, password) {
+        console.log("[*] Login attempt:");
+        console.log("    Username: " + username);
+        console.log("    Password: " + password);
+
+        // Ghidra visade hårdkodat check
+        // Bypassa helt
+        return true;
+    };
+});
+```
+
+</details>
+
+### Övning 2: Native Library-analys
+
+**Mål**: Analysera native library i APK
+
+**Steg**:
+1. Hitta `libnative-lib.so` i APK
+2. Öppna i Ghidra och analysera `JNI_OnLoad`
+3. Identifiera nativ funktion som anropas från Java
+4. Hooka med Frida och extrahera data
+
+**Lösning**:
+
+<details>
+<summary>Klicka för lösning</summary>
+
+```javascript
+// Från Ghidra: funktionen heter "stringFromJNI"
+Interceptor.attach(Module.findExportByName("libnative-lib.so", "Java_com_example_app_MainActivity_stringFromJNI"), {
+    onEnter: function(args) {
+        console.log("[*] stringFromJNI called");
+        // args[0] = JNIEnv*
+        // args[1] = jobject
+    },
+    onLeave: function(retval) {
+        var result = Java.vm.getEnv().getStringUtfChars(retval, null);
+        console.log("[*] Returned: " + result.readCString());
+    }
+});
+```
+
+</details>
+
+### Övning 3: Automatiserad Audit
+
+**Mål**: Bygg automated audit-script
+
+**Steg**:
+1. Använd Ghidra headless mode
+2. Extrahera alla metod-namn
+3. Generera Frida-hooks automatiskt för alla metoder
+4. Kör och logga alla anrop
+
+**Lösning**:
+
+<details>
+<summary>Klicka för lösning</summary>
+
+**ghidra_export.py** (Ghidra script):
+```python
+# Kör i Ghidra
+from ghidra.program.model.listing import Function
+
+functions = currentProgram.getFunctionManager().getFunctions(True)
+
+output = []
+for func in functions:
+    output.append({
+        'name': func.getName(),
+        'address': str(func.getEntryPoint())
+    })
+
+# Spara till fil
+import json
+with open('/tmp/functions.json', 'w') as f:
+    json.dump(output, f)
+```
+
+**generate_hooks.py**:
+```python
+import json
+
+with open('/tmp/functions.json') as f:
+    functions = json.load(f)
+
+hooks = []
+for func in functions:
+    hook = f"""
+Interceptor.attach(ptr("{func['address']}"), {{
+    onEnter: function(args) {{
+        console.log("[{func['name']}] called");
+    }}
+}});
+"""
+    hooks.append(hook)
+
+with open('auto_hooks.js', 'w') as f:
+    f.write("\n".join(hooks))
+```
+
+</details>
+
+---
+
+## 🎓 Sammanfattning
+
+**Key Takeaways från Bonusnivån:**
+
+✅ **Kali Linux**: Säker, isolerad miljö med alla verktyg
+✅ **Ghidra**: Statisk analys för att förstå struktur
+✅ **Frida**: Dynamisk verifiering av runtime-beteende
+✅ **Integration**: Iterativ process mellan statisk och dynamisk
+✅ **ghidra2frida**: Bro för automatisering
+✅ **Automation**: Python för att orkestrera hela pipeline
+
+**Workflow**:
+```
+1. Ghidra:  Kartlägg applikationen
+2. Frida:   Verifiera runtime-beteende
+3. Ghidra:  Fördjupa förståelse
+4. Frida:   Bygg exploits/bypasses
+5. Repeat:  Iterera tills målet är uppnått
+```
+
+**Verktygskombo för olika scenarion**:
+
+| Scenario              | Ghidra | Frida | Extra verktyg        |
+|-----------------------|--------|-------|----------------------|
+| Android APK           | ✓      | ✓     | apktool, jadx        |
+| iOS App               | ✓      | ✓     | bagbak, Hopper       |
+| Windows Malware       | ✓      | ✓     | Wine, PE tools       |
+| Linux Binary          | ✓      | ✓     | radare2, GDB         |
+| Web API Reverse       | ✗      | ✓     | Burp Suite, mitmproxy|
+
+---
+
+## 🚀 Nästa Steg
+
+**Fortsatt Lärande:**
+
+1. **OWASP Mobile Security Testing Guide (MASTG)**
+   - https://mas.owasp.org/MASTG/
+   - Komplett guide för mobil säkerhetstestning
+
+2. **Ghidra Documentation**
+   - https://ghidra-sre.org/
+   - Officiella tutorials och kurser
+
+3. **Frida CodeShare**
+   - https://codeshare.frida.re/
+   - Community-script för alla scenarion
+
+4. **Praktisk övning**
+   - HackTheBox mobila challenges
+   - OWASP Crackmes
+   - Root-Me challenges
+
+**Community:**
+
+- **Discord**: Ghidra & Frida communities
+- **GitHub**: Bidra med scripts och verktyg
+- **Conferences**: DEF CON, Black Hat, OWASP events
+
+---
+
+## 🎉 Slutord
+
+Du har nu den ultimata triaden för reverse engineering:
+
+```
+┌─────────────────────────────────────┐
+│     Kali Linux + Ghidra + Frida     │
+│                                     │
+│  Statisk ←→ Dynamisk ←→ Automation  │
+│                                     │
+│     Professional Security Audit      │
+└─────────────────────────────────────┘
+```
+
+**Använd denna kraft:**
+- ✅ Etiskt
+- ✅ Lagligt
+- ✅ För säkerhetsforskning
+- ✅ Med tillstånd
+
+**Med dessa tre verktyg kan du:**
+- Upptäcka sårbarheter
+- Reverse engineera mjukvara
+- Analysera malware
+- Bypassa skydd (i labs!)
+- Bygga säkrare system
+
+**Lycka till på din fortsatta resa! 🔐🚀**
+
+---
+
+*Bonusnivå skapad: 2025*
+*Ghidra Version: 11.2*
+*Frida Version: 17.4.x*
+*Kali Linux: 2025.x*
+
