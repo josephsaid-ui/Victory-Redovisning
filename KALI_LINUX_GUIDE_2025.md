@@ -94,34 +94,34 @@
 
 ### 📋 Resurser
 
-#### **[Cheat Sheets](./resources/cheat-sheets.md)**
+#### **[Cheat Sheets](./guides/cheat-sheets.md)**
 - Linux Command Cheat Sheet
 - Nmap Cheat Sheet
 - Metasploit Cheat Sheet
 - Burp Suite Cheat Sheet
 - Reverse Shell Cheat Sheet
 
-#### **[Lab Environment Setup](./resources/lab-setup.md)**
+#### **[Lab Environment Setup](./guides/lab-environment-setup.md)**
 - Metasploitable 2/3 Installation
 - DVWA Setup
 - VulnHub VMs
 - Hack The Box Setup
 - TryHackMe Recommendations
 
-#### **[Career Roadmap](./resources/career-roadmap.md)**
+#### **[Career Roadmap](./guides/career-roadmap.md)**
 - Certifieringsväg (Security+ → CEH → OSCP → OSEP)
 - Karriärvägar (Pentester, Red Team, Bug Bounty)
 - Rekommenderade böcker
 - Communities & Conferences
 - Continuous Learning Resources
 
-#### **[Troubleshooting & FAQ](./resources/troubleshooting.md)**
+#### **[Troubleshooting & FAQ](./guides/troubleshooting-faq.md)**
 - Installations-problem
 - Nätverksproblem
 - Verktyg som inte fungerar
 - Vanliga fel och lösningar
 
-#### **[Appendix & Glossary](./resources/appendix.md)**
+#### **[Appendix & Glossary](./guides/appendix.md)**
 - Ordlista (tekniska termer)
 - Användbara länkar
 - Referensmaterial
@@ -482,7 +482,7 @@ Nu när du har läst denna introduktion och förstår guidens struktur:
 👉 Gå till **[Nivå 3: Reconnaissance](./guides/niva-3-reconnaissance.md)**
 
 **Är erfaren och vill bara ha cheat sheets:**
-👉 Gå till **[Cheat Sheets](./resources/cheat-sheets.md)**
+👉 Gå till **[Cheat Sheets](./guides/cheat-sheets.md)**
 
 ### ✅ Steg 3: Förbered din miljö
 - [ ] Säkerställ att virtualisering är aktiverad i BIOS
@@ -497,7 +497,7 @@ Nu när du har läst denna introduktion och förstår guidens struktur:
 ## 📞 Support & Community
 
 **🤔 Har du frågor?**
-- 📖 Kolla **[Troubleshooting & FAQ](./resources/troubleshooting.md)** först
+- 📖 Kolla **[Troubleshooting & FAQ](./guides/troubleshooting-faq.md)** först
 - 🌐 Officiellt Kali Forum: https://forums.kali.org/
 - 💬 Reddit: r/Kalilinux, r/netsec, r/AskNetsec
 - 📺 YouTube: Hackersploit, John Hammond, IppSec, NetworkChuck
@@ -507,8 +507,8 @@ Nu när du har läst denna introduktion och förstår guidens struktur:
 - Kontakta författaren eller bidra med förbättringar
 
 **🎓 Vill du lära dig mer?**
-- Se **[Career Roadmap](./resources/career-roadmap.md)** för certifieringsvägar
-- Se **[Lab Setup](./resources/lab-setup.md)** för övningsmiljöer
+- Se **[Career Roadmap](./guides/career-roadmap.md)** för certifieringsvägar
+- Se **[Lab Setup](./guides/lab-environment-setup.md)** för övningsmiljöer
 
 ---
 
