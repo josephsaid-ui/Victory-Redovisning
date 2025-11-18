@@ -1602,5 +1602,156 @@ RETINA_MACULA_DISEASES = [
         "description": "Cone dystrophy påverkar främst tappreceptorer och ger central synnedsättning, färgseendedefekt och fotophobi. Cone-rod dystrophy involverar också stavar senare. Varierar i svårighetsgrad.",
         "severity": "moderate-severe",
         "urgency": "routine"
+    },
+    {
+        "name": "Hypertensiv Retinopati",
+        "name_en": "Hypertensive Retinopathy",
+        "icd10": "H35.0",
+        "symptoms": [
+            "ofta asymtomatisk i tidiga stadier",
+            "gradvis synnedsättning",
+            "suddig syn",
+            "huvudvärk",
+            "synförlust (vid svår hypertoni eller malign hypertoni)"
+        ],
+        "anamnesis_questions": [
+            "Har du högt blodtryck?",
+            "Tar du blodtrycksmedicin? Vilken dos?",
+            "Vilket blodtryck brukar du ha?",
+            "När mättes blodtrycket senast?",
+            "Har du njursjukdom?",
+            "Har du haft stroke eller hjärtinfarkt?",
+            "Märker du synförsämring?"
+        ],
+        "clinical_signs": [
+            "arteriolärt förträngning (grad 1-2)",
+            "arteriovenösa korsningsförändringar (AV-nicking)",
+            "retinala blödningar (flamformade i nervfiberskiktet)",
+            "cotton-wool spots (mjuka exsudat)",
+            "hårda exsudat",
+            "papillödem (vid malign hypertoni)",
+            "makulastjärna (vid svår hypertoni)",
+            "serös retinal avlossning (vid malign hypertoni)"
+        ],
+        "risk_factors": [
+            "långvarig hypertoni",
+            "okontrollerat blodtryck",
+            "malign hypertoni (diastoliskt >120 mmHg)",
+            "njursjukdom",
+            "diabetes",
+            "kardiovaskulär sjukdom",
+            "ålder"
+        ],
+        "treatment": "PRIMÄRT: aggressiv blodtryckssänkning (samarbete med internmedicin/primärvård). Målblodtryck <140/90 mmHg (lägre vid diabetes/njursjukdom). Vid malign hypertoni med papillödem: AKUT sjukhusvård, IV blodtryckssänkning (försiktig, risk för ischemi vid för snabb sänkning). Behandla underliggande orsaker (njursjukdom, feokromocytom). Oftalmologisk uppföljning: retinala förändringar kan regrediera vid god blodtryckskontroll. Inga specifika ögonbehandlingar i de flesta fall. Långtidsuppföljning för att monitorera vaskulära komplikationer.",
+        "kva": "CJD05 (fundusundersökning)",
+        "differential_diagnoses": [
+            "diabetesretinopati",
+            "retinal venockklusion",
+            "papillödem av annan orsak",
+            "anterior ischemisk optisk neuropati"
+        ],
+        "description": "Hypertensiv retinopati orsakas av kroniskt högt blodtryck som skadar retinala kärl. Gradering: Grad 1 (arteriolärt förträngning), Grad 2 (AV-nicking), Grad 3 (blödningar, exsudat), Grad 4 (papillödem - malign hypertoni).",
+        "severity": "moderate-severe (severe vid malign hypertoni)",
+        "urgency": "urgent (emergency vid malign hypertoni med papillödem)"
+    },
+    {
+        "name": "Retinal Riss/Hål (utan avlossning)",
+        "name_en": "Retinal Tear/Break (without Detachment)",
+        "icd10": "H33.3",
+        "symptoms": [
+            "ljusblixtar (photopsia)",
+            "nya eller ökade floaters",
+            "ofta plötslig debut",
+            "ingen synfältspåverkan ännu (viktigt skiljetecken från avlossning)",
+            "normal central syn"
+        ],
+        "anamnesis_questions": [
+            "Ser du ljusblixtar?",
+            "Har du fått nya flugor eller prickar i synfältet?",
+            "Har du en skugga eller gardin i synfältet? (viktigt - tecken på avlossning)",
+            "Hur länge sedan började symtomen?",
+            "Har du haft liknande i det andra ögat?",
+            "Är du närsint?",
+            "Har du haft ögontrauma?"
+        ],
+        "clinical_signs": [
+            "retinal break eller tear synlig vid oftalmoskopi",
+            "kan ha liten vitreous hemorrhage",
+            "posterior vitreous detachment (PVD) vanligt",
+            "ingen retinal avlossning (ännu)",
+            "normalt synfält",
+            "normal visus"
+        ],
+        "risk_factors": [
+            "myopi (närsynthet)",
+            "lattice degeneration",
+            "posterior vitreous detachment (PVD)",
+            "ögontrauma",
+            "tidigare retinal tear/detachment i andra ögat",
+            "familjehistoria",
+            "afaki (saknad lins)",
+            "ögonkirurgi (särskilt kataraktkirurgi hos yngre myoper)"
+        ],
+        "treatment": "AKUT profylaktisk laser photocoagulation eller kryoterapi runt break/tear för att förhindra retinal avlossning. Behandla SNART (inom 24-48 timmar) - risk för progression till retinal avlossning är hög (30-50% om obehandlad). Teknik: laser skapar ärrbildning runt hålet som förankrar retina till underliggande vävnad. Patienten bör undvika tunga lyft och Valsalva-manövrer tills laser är utförd. Uppföljning efter 1-2 veckor, sedan efter 6 veckor, sedan efter 3-6 månader. Undersök andra ögat (15-20% risk för bilaterala tears). Långtidsuppföljning vid myopi och lattice degeneration.",
+        "kva": "CJF20 (laser photocoagulation retina)",
+        "differential_diagnoses": [
+            "posterior vitreous detachment utan tear (endast floaters/flashes)",
+            "retinal avlossning (mer allvarligt - synfältsbortfall)",
+            "vitreous hemorrhage"
+        ],
+        "description": "Retinala riss/hål är brott i retina som kan leda till retinal avlossning om de inte behandlas. U-formade tears (hästsko-tears) är vanligast och mest riskabla. Runda hål är mindre riskabla.",
+        "severity": "moderate (hög risk för severe om obehandlad)",
+        "urgency": "urgent (behandla inom 24-48h)"
+    },
+    {
+        "name": "Epiretinal Membran (Makulaförveckling)",
+        "name_en": "Epiretinal Membrane (Macular Pucker)",
+        "icd10": "H35.3",
+        "symptoms": [
+            "gradvis synnedsättning",
+            "förvrängd syn (metamorfopsi)",
+            "centralt synfältsbortfall (om svår)",
+            "dubbelbilder på ett öga (monokulär diplopi)",
+            "svårighet att läsa",
+            "ofta asymtomatisk vid mild membran"
+        ],
+        "anamnesis_questions": [
+            "Hur länge har du haft problem med synen?",
+            "Ser raka linjer böjda eller vågiga?",
+            "Har du svårt att läsa?",
+            "Har synen försämrats gradvis eller plötsligt?",
+            "Har du haft retinal avlossning eller ögonkirurgi?",
+            "Märker du någon skillnad mellan ögonen?"
+        ],
+        "clinical_signs": [
+            "skrynklig, reflekterande membran på maculaytan",
+            "retinal veckning och distorsion",
+            "kan ha pseudohål i macula",
+            "tortuösa retinala kärl i maculaområdet",
+            "OCT visar epiretinal membran och retinal förtjockning",
+            "kan ha cystoid maculaödem"
+        ],
+        "risk_factors": [
+            "idiopatisk (vanligast hos äldre)",
+            "posterior vitreous detachment (PVD)",
+            "retinal vein ocklusion",
+            "diabetesretinopati",
+            "uveit",
+            "tidigare retinal avlossning eller laser",
+            "ögontrauma",
+            "ögonkirurgi",
+            "ålder >50 år"
+        ],
+        "treatment": "OBSERVATION om mild och minimala symtom (många patienter behöver ingen behandling). KIRURGI (pars plana vitrektomi med membranpeeling) indikerad vid: signifikant synnedsättning (visus <0.5), besvärande metamorfopsi som påverkar ADL, progression av membran. Postoperativ återhämtning kan ta månader. Visuell prognos generellt god om behandlad i tid. Risker med kirurgi: katarakt (nästan säker hos fakaöga), retinal avlossning (1-2%), infektion. Regelbunden uppföljning med OCT för att monitorera progression. Amsler grid för hemmonitorering.",
+        "kva": "CJF10 (pars plana vitrektomi)",
+        "differential_diagnoses": [
+            "macular hole",
+            "cystoid macular edema",
+            "vitreomacular traction",
+            "central serös chorioretinopati"
+        ],
+        "description": "Epiretinal membran är en tunn, fibrövaskulär membran som växer på maculaytan och orsakar retinal veckning och distorsion. Kan vara idiopatisk (vanligast) eller sekundär till annan ögonsjukdom.",
+        "severity": "mild-moderate",
+        "urgency": "routine"
     }
 ]

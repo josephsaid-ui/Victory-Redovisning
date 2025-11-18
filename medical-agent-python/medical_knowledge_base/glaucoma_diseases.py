@@ -945,5 +945,145 @@ GLAUCOMA_DISEASES = [
         "description": "Glaukom efter vitrektomi har många orsaker: gas, silikon, inflammation, neovaskulationer, steroider. Kräver identifiering av orsak och specifik behandling. Profylaktisk iridotomi vid gas.",
         "severity": "moderate-severe",
         "urgency": "urgent"
+    },
+    {
+        "name": "Vinkelrecessions-Glaukom (Angle Recession Glaucoma)",
+        "name_en": "Angle Recession Glaucoma",
+        "icd10": "H40.3",
+        "symptoms": [
+            "ofta asymtomatisk tidigt",
+            "gradvis synförlust (sent)",
+            "historia av ögontrauma (kan vara åratal sedan)",
+            "ofta unilateralt",
+            "inga akuta symtom"
+        ],
+        "anamnesis_questions": [
+            "Har du haft trauma mot ögat? När?",
+            "Vilken typ av trauma? (trubbigt slag mest vanligt)",
+            "Har du märkt synförsämring?",
+            "Har du smärta eller rodnad?",
+            "Har du haft högt ögontryck tidigare?",
+            "Använder du trycknedsättande droppar?"
+        ],
+        "clinical_signs": [
+            "förhöjt IOP (oftast måttligt förhöjt, 25-35 mmHg)",
+            "gonioskopi: vinkelrecession (ciliarkropp synlig, sliten iris vid basen)",
+            "ofta >180 grader recession för glaukom",
+            "glaukomatös optikusskada",
+            "synfältsdefekter",
+            "kan ha andra traumatecken: cataract, subluxerad lins, iridodialys"
+        ],
+        "risk_factors": [
+            "trubbigt ögontrauma (oftast sportverletzningar, slag)",
+            "tid sedan trauma (kan utvecklas månader-åratal senare)",
+            "grad av vinkelrecession (>180 grader högre risk)",
+            "unilateralt trauma"
+        ],
+        "treatment": "Medicinsk behandling: prostaglandinanalog, beta-blockerare, CAI (topikalt eller systemiskt), alpha-agonister. Ofta svårbehandlat och kräver flera läkemedel. Laser trabekuloplastik (SLT/ALT) - varierande resultat, ofta mindre effektivt än vid POAG. KIRURGI om medicinsk behandling otillräcklig: trabekulektomi eller glaukom drainage devices (tube shunts) - tube shunts ofta föredragna pga tidigare trauma. Livslång uppföljning. Viktigt: jämför alltid med andra ögat (asymmetri i IOP och optikusskada). Behandla aggressivt - glaukomskadan kan progressera snabbt.",
+        "kva": "CJE96 (gonioskopi), CJF30 (trabekulektomi)",
+        "differential_diagnoses": [
+            "primär öppenvinklat glaukom (men historia av trauma)",
+            "traumatisk katarakt med sekundärt glaukom",
+            "glaukom vid linsluxation",
+            "steroidglaukom (om steroider använts efter trauma)"
+        ],
+        "description": "Vinkelrecessions-glaukom uppstår efter trubbigt ögontrauma som skadar trabekulärt meshwork och ciliarkropp. Kan utvecklas åratal efter trauma. Diagnos med gonioskopi.",
+        "severity": "moderate-severe",
+        "urgency": "routine (men behandla när diagnostiserat)"
+    },
+    {
+        "name": "Plateau Iris Syndrom",
+        "name_en": "Plateau Iris Syndrome",
+        "icd10": "H40.2",
+        "symptoms": [
+            "intermittenta episoder av suddig syn och halo",
+            "lätt huvudvärk eller ögonsmärta",
+            "symtom kan utlösas av mydriasis (mörker, pupilldilaterande droger)",
+            "ofta unga till medelålders patienter",
+            "symtom liknar trångvinkelglaukom men mildare"
+        ],
+        "anamnesis_questions": [
+            "Har du haft episoder av suddig syn eller halo runt ljus?",
+            "Kommer besvären i mörker eller efter pupilldilation?",
+            "Har du haft laser iridotomi tidigare?",
+            "Har du fortfarande symtom efter iridotomi?",
+            "Är du närsint eller översint?",
+            "Finns det familjehistoria av glaukom?"
+        ],
+        "clinical_signs": [
+            "patent laser iridotomi (pupillblock är eliminerat)",
+            "trång kammarvinkel trots patent iridotomi",
+            "gonioskopi: plateau iris konfiguration (irisinsertion framåt, plan iris)",
+            "UBM (ultrasound biomicroscopy): framåtrotererade ciliarprocesser",
+            "normalt eller förhöjt IOP",
+            "normal eller grund främre kammare",
+            "ofta hypermetropi (översynthet)"
+        ],
+        "risk_factors": [
+            "hypermetropi",
+            "kort axellängd",
+            "tjock perifer iris",
+            "anteriorläge av ciliarkropp",
+            "yngre ålder jämfört med vanligt trångvinkelglaukom",
+            "asiatiskt ursprung (högre prevalens)"
+        ],
+        "treatment": "FÖRSTA LINJE: laser iridotomi (för att utesluta pupillblock-komponent). Efter iridotomi, om vinkel fortfarande trång: Laser peripheral iridoplasty (LPIP/gonioplasty) - argonlaser kontraherar perifera iris, öppnar vinkeln. Medicinsk behandling: pilokarpin (konstringerar pupillen, öppnar vinkeln), undvik mydriasis-utlösande droger, trycknedsättande medicin om IOP förhöjt. KIRURGI om refraktär: lens extraction (kataraktkirurgi) även hos unga kan öppna vinkeln dramatiskt (kontroversiellt men alltmer accepterat), trabekulektomi eller tube shunt om kirurgi behövs. Långtidsuppföljning: gonioskopi årligen, risk för akut attack om obehandlad.",
+        "kva": "CJF05 (laser iridotomi), CJF06 (laser iridoplasti), CJE96 (gonioskopi + UBM)",
+        "differential_diagnoses": [
+            "primärt trångvinkelglaukom med pupillblock",
+            "creeping angle closure (kronisk trångvinkel utan plateau)",
+            "malign glaukom",
+            "ciliokroidal effusion med vinkelstängning"
+        ],
+        "description": "Plateau iris är en anatomisk konfiguration där framåtrotererade ciliarprocesser skjuter perifera iris framåt, trots att pupillblock är eliminerat. Kan ge intermittenta angle closure episoder.",
+        "severity": "moderate",
+        "urgency": "urgent (om akuta episoder)"
+    },
+    {
+        "name": "Steroidinducerat Glaukom",
+        "name_en": "Steroid-Induced Glaucoma",
+        "icd10": "H40.6",
+        "symptoms": [
+            "oftaymptomatisk (smygande)",
+            "gradvis synförlust",
+            "inga smärtor eller rodnad",
+            "historia av steroidanvändning (ögondroppar, topikalt på hud, inhalation, systemiskt, intravitreala injektioner)"
+        ],
+        "anamnesis_questions": [
+            "Använder du steroidögondroppar? Hur länge?",
+            "Har du fått steroidinjektioner i ögat?",
+            "Använder du steroidkräm runt ögonen?",
+            "Använder du inhalationssteroider för astma/KOL?",
+            "Tar du steroider i tablettform (prednisolon)?",
+            "När började du med steroider och har trycket mätts sedan dess?",
+            "Finns det familjehistoria av glaukom?"
+        ],
+        "clinical_signs": [
+            "förhöjt IOP (kan vara kraftigt förhöjt, >30 mmHg)",
+            "öppen kammarvinkel vid gonioskopi",
+            "glaukomatös optikusskada (om långvarig exponering)",
+            "synfältsdefekter (vid etablerad skada)",
+            "inga inflammatoriska tecken (viktigt skiljetecken från uveitisk glaukom)"
+        ],
+        "risk_factors": [
+            "genetisk predisposition (steroid responders - 30-40% av befolkningen)",
+            "POAG eller familjehistoria av glaukom (högre risk)",
+            "diabetes",
+            "höggradmyopi",
+            "barn (högre känslighet)",
+            "längd och potens av steroidbehandling",
+            "intravitreala steroidimplantat (Ozurdex, Iluvien) - hög risk"
+        ],
+        "treatment": "PRIMÄRT: AVBRYT eller MINSKA steroiddos om medicinskt möjligt (samråd med förskrivande läkare). Byt till lägpotent steroid eller steroid-sparande alternativ (t.ex. immunsuppressiva vid uveit, anti-VEGF istället för steroid vid makulaödem). Trycknedsättande behandling: prostaglandinanalog, beta-blockerare, CAI, alpha-agonister - behandla som POAG. IOP normaliseras ofta inom veckor-månader efter steroidutsättning, men kan kräva längre tid. Intravitreala implantat: överväg kirurgisk borttagning om möjligt och IOP okontrollerbart. KIRURGI om medicinsk behandling otillräcklig eller implant finns kvar: trabekulektomi, tube shunt. VIKTIGT: Screena IOP regelbundet hos alla patienter på steroider (särskilt långtidsbehandling).",
+        "kva": "AT001 (tryckmätning och uppföljning)",
+        "differential_diagnoses": [
+            "primär öppenvinklat glaukom",
+            "uveitiskt glaukom (men steroidglaukom har INGEN inflammation)",
+            "traumatiskt glaukom",
+            "neovaskulärt glaukom"
+        ],
+        "description": "Steroidinducerat glaukom orsakas av ökad resistans i trabekulärt meshwork vid steroidexponering. Kan uppstå efter topikala, systemiska, inhalerade eller intravitreala steroider. Genetisk predisposition finns.",
+        "severity": "moderate-severe",
+        "urgency": "urgent (när diagnostiserat - agera snabbt)"
     }
 ]

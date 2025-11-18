@@ -1251,5 +1251,162 @@ CORNEA_DISEASES = [
         "description": "Interstitiell keratit är djup stromal inflammation, historiskt vanligast vid kongenital syfilis (sällsynt nu). Ger djup neovaskularisation och scarring. 'Ghost vessels' är karakteristiska. Behandla underliggande infektion.",
         "severity": "moderate-severe",
         "urgency": "urgent"
+    },
+    {
+        "name": "Kornealerosion (Corneal Abrasion)",
+        "name_en": "Corneal Abrasion",
+        "icd10": "S05.0",
+        "symptoms": [
+            "akut, svår ögonsmärta",
+            "främmande kropps-känsla",
+            "ljuskänslighet (fotophobi)",
+            "tårflöde",
+            "blefarospasm (ögonlockkramp)",
+            "synnedsättning (om central)",
+            "smärtan ofta värre vid blinking eller ögonöppning"
+        ],
+        "anamnesis_questions": [
+            "Vad hände? Fick du något i ögat?",
+            "Var det en skada med nagel, papper, gren, kontaktlins?",
+            "Hur länge sedan hände det?",
+            "Har du mycket smärta?",
+            "Kan du öppna ögat?",
+            "Ser du sämre?",
+            "Använder du kontaktlinser?",
+            "Har du haft liknande tidigare?"
+        ],
+        "clinical_signs": [
+            "epitheldefekt synlig med fluorescein (grön färgning)",
+            "konjunktival injektion",
+            "tårfilm instabil",
+            "kan ha främmande kropp (subtarsal!)",
+            "anterior chamber reaction (mild, om stor abrasion)",
+            "blefarospasm",
+            "normal pupill (viktigt - uteslut penetrerande skada)"
+        ],
+        "risk_factors": [
+            "trauma (finger, nagel, papper, gren, kontaktlins)",
+            "kontaktlinsbärare (särskilt övernattning)",
+            "arbete med slagverktyg (uteslut främmande kropp!)",
+            "torrt ögon",
+            "dystrofier (recidiverar lättare)"
+        ],
+        "treatment": "AKUT: Smärtlindring: topikala NSAID (ketorolac, diklofenak) OCH systemiska analgetika. Antibiotika: oftalmisk salva (kloramfenikol, fusidinsyra) för att förhindra infektion. Cykloplegika: ciklopentolat vid svår smärta/fotophobi (minskar ciliarspasm). INGEN bindel/lapp (ökar infektionsrisk). Kontaktlinsbärare: ALDRIG mono-antibiotika - använd fluorokinolon (ciprofloxacin/levofloxacin) pga Pseudomonas-risk. Uppföljning: små abrasioner (24-48h), stora abrasioner (24h OBLIGATORISKT). Läkning: små abrasioner läker på 24-48h, stora kan ta 3-5 dagar. VARNING: uteslut penetrerande skada, främmande kropp (speciellt subtarsal), kontaktlins-relaterad infektion. Bandage contact lens kan användas vid stora, smärtsamma abrasioner (endast av erfaren oftalmolog).",
+        "kva": "AT001 (akut konsultation)",
+        "differential_diagnoses": [
+            "främmande kropp i cornea",
+            "recidiverande kornealerosion",
+            "infektiös keratit",
+            "UV-keratit (svetsarbete)",
+            "korneal främmande kropp under övre lock (subtarsal)"
+        ],
+        "description": "Kornealerosion är akut skada på kornealepitelet, vanligast trauma-relaterad. Mycket smärtsamt. Läker oftast på 24-48h med behandling. Risk för infektion, särskilt hos kontaktlinsbärare.",
+        "severity": "mild-moderate",
+        "urgency": "urgent (akut)"
+    },
+    {
+        "name": "Recidiverande Kornealerosion (RCE)",
+        "name_en": "Recurrent Corneal Erosion",
+        "icd10": "H18.8",
+        "symptoms": [
+            "plötsliga, svåra ögonsmärta vid uppvaknande (klassiskt!)",
+            "episodiska attacker av smärta, fotophobi, tårflöde",
+            "symtom värst på morgonen (ögat torrt efter sömn)",
+            "ofta historia av tidigare kornealerosion/trauma",
+            "kan ha recidiv månader-åratal efter initial skada",
+            "attackerna kan vara korta (timmar) eller pågå dagar"
+        ],
+        "anamnesis_questions": [
+            "Vaknar du med plötslig ögonsmärta?",
+            "Har du haft liknande episoder tidigare?",
+            "Hade du en kornealerosion eller skada för länge sedan?",
+            "Hur länge pågår attackerna?",
+            "Hur ofta kommer de?",
+            "Finns det familjehistoria av korneal sjukdom?",
+            "Använder du smörjande droppar eller salva?"
+        ],
+        "clinical_signs": [
+            "under attack: epitheldefekt (oftast samma plats som tidigare skada)",
+            "fluorescein visar loose eller absent epitelet",
+            "mellan attacker: kan vara helt normalt eller subtila förändringar",
+            "negativ fluorescein (ingen erosion synlig mellan attacker)",
+            "anterior basement membrane dystrophy (ABMD) kan coexistera",
+            "mikrocystor, mapliknande linjer i epitelet"
+        ],
+        "risk_factors": [
+            "tidigare kornealerosion/trauma (oftast fingernagelskada)",
+            "anterior basement membrane dystrophy (ABMD/map-dot-fingerprint)",
+            "dystrofier (Reis-Bücklers, lattice, granulär)",
+            "diabetes",
+            "torrt ögon",
+            "kontaktlinsbärare"
+        ],
+        "treatment": "AKUT (vid attack): samma som kornealerosion - smärtlindring, antibiotika salva, cykloplegika. PROFYLAX (förhindra recidiv - VIKTIGT!): Hypertonisk salva (NaCl 5%) nattetid i 3-6 månader (drar vätska ut epitelet, förbättrar adhesion). Smörjande droppar dagligen + riklig salva nattetid (artificiella tårar). Behandla torrt ögon aggressivt. Bandage contact lens under akut episod. KIRURGI om medicinsk behandling misslyckas: anterior stromal puncture (nål skapar ärr som fixerar epitelet) - enkelt, kontor-procedur, effektivt för små centrala erosioner. Phototherapeutic keratectomy (PTK) - excimer laser avlägsnar onormalt basement membrane - effektivt men dyrare. Alkohol-delamination av epitelet (vid dystrofier). Framgång: 70-80% med hypertonisk salva, 90% med PTK. Långtidsuppföljning.",
+        "kva": "CJF25 (PTK), CJE20 (stromal puncture)",
+        "differential_diagnoses": [
+            "akut kornealerosion (första gången)",
+            "infektiös keratit",
+            "anterior basement membrane dystrophy (ofta underliggande)",
+            "torrt ögon med epiteliella defekter"
+        ],
+        "description": "Recidiverande kornealerosion är återkommande episoder av spontan epitelavlossning, oftast på morgonen. Orsakas av dålig epiteladhesion till basement membrane efter tidigare trauma eller vid dystrofier. Mycket smärtsamt men godartad.",
+        "severity": "moderate",
+        "urgency": "urgent (under attack)"
+    },
+    {
+        "name": "Exponeringskeratopati (Exposure Keratopathy)",
+        "name_en": "Exposure Keratopathy",
+        "icd10": "H16.2",
+        "symptoms": [
+            "torrhet och irritation",
+            "främmande kropps-känsla",
+            "rodnad",
+            "suddig syn",
+            "smärta (om allvarlig)",
+            "sår på hornhinnan (om kronisk)",
+            "ofta värre på morgonen (exponering nattetid)",
+            "kan vara asymtomatisk i tidiga stadier"
+        ],
+        "anamnesis_questions": [
+            "Kan du blunda helt?",
+            "Har du haft ansiktsförlamning eller stroke?",
+            "Har du framträngande ögon (tyreoidea-sjukdom)?",
+            "Sover du med ögonen öppna? (fråga partner)",
+            "Vaknar du med torra, irriterade ögon?",
+            "Har du haft ögonlockskirurgi?",
+            "Har du eksem eller annan hudsjukdom?",
+            "Är du medvetslös eller sövd på IVA? (för läkare)"
+        ],
+        "clinical_signs": [
+            "lagophthalmos (ofullständig blunkning)",
+            "SPK (superficiell punktat keratopati), ofta inferior",
+            "fluorescein-färgning inferior cornea",
+            "kan ha kornealulcus (om svår)",
+            "torr, matt cornealyta",
+            "förkortat tear break-up time",
+            "konjunktival injektion",
+            "i svåra fall: korneal perforation (sällsynt men allvarligt)"
+        ],
+        "risk_factors": [
+            "facialispares (Bell's pares, stroke)",
+            "Graves oftalmopati (proptosis)",
+            "ektropion (utåtvänt ögonlock)",
+            "ögonlocksretraktion",
+            "nocturnal lagophthalmos (sover med ögat öppet)",
+            "nedsatt medvetande/IVA-vård (inkomplett blunkning)",
+            "post-blepharoplasty (kosmetisk ögonlockskirurgi)",
+            "congenital lagophthalmos"
+        ],
+        "treatment": "BEHANDLINGSMÅL: skydda hornhinnan från exponering och uttorkning. MILD: Smörjande droppar frekvent dagtid (varje 1-2h), riklig salva nattetid, fuktkammare-glasögon, tapeband över ögat nattetid (om lagophthalmos). MÅTTLIG: Bandage contact lens (skyddar epitelet), behandla underliggande orsak (tyreoidea, facialispares), botulinum toxin till levator (sänker övre lock temporärt). SVÅR eller ULCUS: Tarsorafi (kirurgisk partial/komplett sys ihop av ögonlocken - temporärt eller permanent), vätska-fyllda chambers/Moisture chambers, autolog serum eyedrops. ÖGONLOCKSKIRURGI: lateral tarsal strip (vid ektropion), lateral canthal tightening, övre locksretraktion repair, gold weight implant i övre lock (vid kronisk facialispares). IVA-patienter: profylax med salva + ögonlock-tejp. VIKTIGT: behandla aggressivt - risk för perforation vid svår exponering.",
+        "kva": "ACF00 (tarsorafi), ACF10 (ögonlockskirurgi)",
+        "differential_diagnoses": [
+            "torrt ögon (aqueous deficiency)",
+            "neurotrofisk keratopati",
+            "infektiös keratit",
+            "limbal stem cell deficiency"
+        ],
+        "description": "Exponeringskeratopati orsakas av otillräcklig blunkning eller ögonlocksstängning, vilket leder till korneal uttorkning och skada. Kan vara mild (SPK) till svår (kornealulcus, perforation). Kräver aggressiv smörjning och ibland kirurgi.",
+        "severity": "moderate-severe (severe om ulcus/perforation)",
+        "urgency": "urgent (emergency om ulcus/perforation)"
     }
 ]

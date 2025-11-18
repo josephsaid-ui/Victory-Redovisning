@@ -1171,5 +1171,63 @@ INFLAMMATORY_DISEASES = [
         "description": "TASS är steril toxisk inflammation efter kataraktkirurgi. Orsakad av kontaminanter. Tidig debut (12-48h) vs endoftalmit (2-7 dagar). Saknar vitrit (viktigt!). Ofta clusters. Behandlas med intensiva steroider. God prognos. Viktigt att uteslut endoftalmit!",
         "severity": "moderate",
         "urgency": "urgent"
+    },
+    {
+        "name": "Dakrioadenit (Tårkörtelinflammation)",
+        "name_en": "Dacryoadenitis",
+        "icd10": "H04.0",
+        "symptoms": [
+            "svullnad och smärta i yttre övre ögonlocket",
+            "rodnad över laterala övre lock",
+            "S-formad ptosis (karakteristiskt!)",
+            "tårflöde",
+            "feber (vid akut bakteriell)",
+            "ömmhet vid palpation",
+            "kan ha dubbelseende (om svullnad stor)",
+            "lymfkörtelsvullnad preaurikulärt"
+        ],
+        "anamnesis_questions": [
+            "Hur länge har du haft svullnaden?",
+            "Har du feber eller känner dig sjuk?",
+            "Har du haft liknande tidigare?",
+            "Har du körtelfeber (mononukleos)?",
+            "Har du torrt ögon eller mun (Sjögrens)?",
+            "Har du sarkoid eller annan systemsjukdom?",
+            "Har du haft trauma mot ögat?",
+            "Har du svullna lymfkörtlar på andra ställen?"
+        ],
+        "clinical_signs": [
+            "synlig svullnad yttre övre ögonlock",
+            "S-formad ptosis (från dakriadalkörteln)",
+            "palpabel, öm massa i laterala övre orbita",
+            "konjunktival injektion (ofta temporal)",
+            "can ha purulent sekret från tårkörtelgångar",
+            "förstorad tårkörtel (synlig/palpabel)",
+            "preaurikulär lymfadenopati",
+            "kan ha proptosis (om stor)"
+        ],
+        "risk_factors": [
+            "virala infektioner (EBV, mumps, influensa)",
+            "bakteriell infektion (Staph aureus, Streptococcus)",
+            "systemiska sjukdomar (Sjögrens syndrom, sarkoid, IgG4-sjukdom)",
+            "immunsuppression",
+            "trauma",
+            "tårkörtel-tumör (kronisk dakrioadenit kan vara tumör!)"
+        ],
+        "treatment": "AKUT BAKTERIELL: oral antibiotika (flukloxacillin, amoxicillin-clavulanat, klindamycin) i 10-14 dagar. Varma kompress. Smärtlindring (NSAID, paracetamol). Om abscess: kirurgisk dränage. IV antibiotika om systemisk sjukdom eller svår infektion. VIRAL (vanligast): stödjande behandling (virus går över spontant på 2-3 veckor), varma kompress, smärtlindring. INGEN antibiotika vid viral etiologi. KRONISK: utred underliggande orsak! Biopsi om kronisk (uteslut tumör, sarkoid, IgG4-sjukdom, Sjögrens). Behandla underliggande systemsjukdom. Steroider vid inflammatoriska systemsjukdomar (sarkoid, IgG4). Uppföljning: kontroll efter 1-2 veckor, längre uppföljning vid kronisk. VIKTIGT: kronisk dakrioadenit kan vara tecken på lymfom eller annan tumör - utred!",
+        "kva": "AT001 (konsultation), PA001 (biopsi om kronisk)",
+        "differential_diagnoses": [
+            "preseptal cellulitis",
+            "dermatochalasis med inflammation",
+            "tårkörtel-tumör (pleomorf adenom, lymfom)",
+            "orbital cellulitis",
+            "chalazion (stor, i laterala övre lock)",
+            "Sjögrens syndrom",
+            "sarkoidosis",
+            "IgG4-relaterad sjukdom"
+        ],
+        "description": "Dakrioadenit är inflammation av tårkörteln (lakrimalkörteln). Kan vara akut (oftast viral eller bakteriell) eller kronisk (systemiska sjukdomar, tumör). Karakteristisk S-formad ptosis och svullnad i yttre övre lock. Akut viral går över spontant, bakteriell kräver antibiotika. Kronisk kräver utredning för underliggande orsak.",
+        "severity": "moderate",
+        "urgency": "urgent (akut bakteriell)"
     }
 ]
