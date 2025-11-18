@@ -2,10 +2,11 @@
 ## Från Total Nybörjare till Cybersäkerhetsproffs
 
 **Version:** 2.0
-**Senast uppdaterad:** November 2025
+**Senast uppdaterad:** 2025-01-18
 **Målgrupp:** Windows 11-användare som vill lära sig Kali Linux och etisk hacking
 **Svårighetsgrad:** Nybörjare → Avancerad (progressiv inlärning)
 **Beräknad genomförande-tid:** 40-60 timmar
+**Total omfattning:** ~79,500 ord (614 KB) över 19 guide-filer
 
 ---
 
@@ -562,8 +563,8 @@ Denna guide är byggd på kunskap från:
 ---
 
 **Version History:**
-- v2.0 (November 2025) - Komplett omskrivning för Windows 11, uppdaterade verktyg
-- v1.5 (Juli 2024) - Lade till WSL2-support
-- v1.0 (Januari 2024) - Initial release
+- v2.0 (2025-01-18) - Komplett guide skapad: 19 guide-filer, 25+ verktyg, ~79,500 ord, svensk juridisk översikt
+- v1.5 (2024-07-01) - WSL2-support tillagd
+- v1.0 (2024-01-01) - Initial release
 
-**Senast uppdaterad:** 2025-11-17
+**Senast uppdaterad:** 2025-01-18
