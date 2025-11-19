@@ -7445,3 +7445,1633 @@ Du är Blue Team lead. Red Team har precis demonstrerat alla 7 attack vectors ov
 *"In security, there are no final victories"*
 *Skapad: 2025 - Educational Purposes Only*
 
+---
+
+# 🎯 BONUS CASE STUDY: Obsidian Copilot Plus Bypass Challenge
+
+## 📝 Scenario: Desktop Application License Validation
+
+**Målapplikation**: Obsidian Copilot Plus (fiktiv premium plugin för Obsidian)
+- **Platform**: Windows 10/11 (Electron-baserad app)
+- **Pris**: $10/månad för AI-assisterad anteckningsförbättring
+- **Features**:
+  - Free tier: Basic markdown editor
+  - Plus tier: AI auto-complete, smart linking, PDF export, custom themes
+
+**Bug Bounty Challenge**: Internal security audit med $15,000 budget
+
+**Red Team Tools**:
+- ✅ Frida (JavaScript injection)
+- ✅ Ghidra (static analysis)
+- ✅ x64dbg (Windows debugging)
+- ✅ Kali Linux tools (process monitor, network analysis)
+- ✅ dnSpy (.NET decompiler för Electron apps)
+
+**Skillnader från tidigare cases**:
+- Desktop app (ej web service primärt)
+- Electron framework (Chromium + Node.js)
+- Windows-specific tools (x64dbg)
+- Local license file validation
+
+---
+
+## 🔴 RED TEAM: Obsidian Copilot Plus Bypass
+
+### Fas 1: Reconnaissance - Desktop App Analysis
+
+#### Steg 1.1: Identifiera App Arkitektur
+
+```bash
+# På Windows - kolla Obsidian installation
+cd "C:\Users\YourName\AppData\Local\Programs\Obsidian"
+
+dir
+# Filer:
+# - Obsidian.exe (main executable)
+# - resources/app.asar (Electron app bundle)
+# - resources/plugins/copilot-plus/ (vår target!)
+
+# Identifiera att det är Electron app
+strings Obsidian.exe | grep -i electron
+# Output: "Electron/25.8.0"
+```
+
+**Viktigt fynd**: Electron app = JavaScript + Node.js = lättare att reverse engineera än native C++
+
+#### Steg 1.2: Extrahera Electron App Source
+
+```bash
+# Installera asar tool
+npm install -g asar
+
+# Extrahera app.asar
+asar extract resources/app.asar extracted/
+
+# Utforska struktur
+cd extracted/
+tree -L 3
+
+# Output:
+# ├── main.js (Electron main process)
+# ├── renderer/
+# │   ├── index.html
+# │   ├── app.js
+# └── plugins/
+#     └── copilot-plus/
+#         ├── main.js
+#         ├── license.js  ← INTRESSANT!
+#         └── features/
+```
+
+#### Steg 1.3: Statisk Analys av License Validation
+
+**Läs license.js:**
+
+```javascript
+// extracted/plugins/copilot-plus/license.js
+
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+class LicenseValidator {
+    constructor() {
+        this.licenseFile = path.join(
+            process.env.APPDATA,
+            'ObsidianCopilotPlus',
+            'license.key'
+        );
+    }
+
+    async validateLicense() {
+        try {
+            // Läs license file
+            const licenseData = fs.readFileSync(this.licenseFile, 'utf8');
+            const parsed = JSON.parse(licenseData);
+
+            // Validera signatur
+            if (!this.verifySignature(parsed)) {
+                return { valid: false, reason: 'Invalid signature' };
+            }
+
+            // Kolla expiration
+            if (Date.now() > parsed.expires) {
+                return { valid: false, reason: 'License expired' };
+            }
+
+            // Online validation (fallback)
+            const online = await this.validateOnline(parsed.license_key);
+
+            return {
+                valid: true,
+                tier: parsed.tier,  // 'free' eller 'plus'
+                expires: parsed.expires,
+                online_verified: online
+            };
+
+        } catch (error) {
+            console.error('License validation failed:', error);
+            return { valid: false, reason: 'No license file' };
+        }
+    }
+
+    verifySignature(licenseData) {
+        const { license_key, expires, tier, signature } = licenseData;
+
+        // Skapa payload
+        const payload = `${license_key}:${expires}:${tier}`;
+
+        // Verifiera HMAC signature
+        const secret = 'ObsidianCopilotSecret2025';  // ← HARDCODED SECRET!
+        const expectedSig = crypto
+            .createHmac('sha256', secret)
+            .update(payload)
+            .digest('hex');
+
+        return signature === expectedSig;
+    }
+
+    async validateOnline(licenseKey) {
+        try {
+            const response = await fetch('https://api.obsidian-copilot.com/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ license_key: licenseKey })
+            });
+
+            const result = await response.json();
+            return result.valid === true;
+        } catch (error) {
+            // Om offline, acceptera local validation
+            console.warn('Online validation failed, using offline mode');
+            return true;  // ← SÅRBARHET!
+        }
+    }
+
+    isPlusUser() {
+        const license = this.cachedLicense || { valid: false };
+        return license.valid && license.tier === 'plus';
+    }
+}
+
+module.exports = new LicenseValidator();
+```
+
+**Kritiska sårbarheter identifierade:**
+
+1. ✅ Hardcoded HMAC secret i klartext
+2. ✅ License file på user-writable location
+3. ✅ Online validation fallback returnerar `true` vid network error
+4. ✅ Enkel tier-check (`tier === 'plus'`)
+
+### Fas 2: Exploit Development
+
+#### Exploit 1: Forge License File (Lättast)
+
+**Steg 1: Extrahera secret från kod** (redan gjort - `ObsidianCopilotSecret2025`)
+
+**Steg 2: Generera fake license**
+
+```javascript
+// forge_license.js
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+function forgeLicense() {
+    const secret = 'ObsidianCopilotSecret2025';
+
+    const licenseData = {
+        license_key: 'FORGED-LICENSE-KEY-12345',
+        tier: 'plus',  // PREMIUM!
+        expires: Date.now() + (365 * 24 * 60 * 60 * 1000),  // 1 år
+    };
+
+    // Beräkna signature med stulen secret
+    const payload = `${licenseData.license_key}:${licenseData.expires}:${licenseData.tier}`;
+    const signature = crypto
+        .createHmac('sha256', secret)
+        .update(payload)
+        .digest('hex');
+
+    licenseData.signature = signature;
+
+    // Spara till license file location
+    const licensePath = path.join(
+        process.env.APPDATA,
+        'ObsidianCopilotPlus',
+        'license.key'
+    );
+
+    // Skapa directory om den inte finns
+    fs.mkdirSync(path.dirname(licensePath), { recursive: true });
+
+    // Skriv forged license
+    fs.writeFileSync(licensePath, JSON.stringify(licenseData, null, 2));
+
+    console.log('[+] Forged license created at:', licensePath);
+    console.log('[+] License data:', licenseData);
+}
+
+forgeLicense();
+```
+
+**Kör:**
+
+```bash
+node forge_license.js
+
+# Output:
+# [+] Forged license created at: C:\Users\...\AppData\Roaming\ObsidianCopilotPlus\license.key
+# [+] License data: { license_key: 'FORGED-LICENSE-KEY-12345', tier: 'plus', ... }
+
+# Starta Obsidian
+# ✅ PREMIUM FEATURES UNLOCKED!
+```
+
+#### Exploit 2: Frida Runtime Manipulation
+
+**Scenario**: Vad om Blue Team krypterar license.js?
+
+**Lösning**: Hook runtime med Frida
+
+```javascript
+// obsidian_bypass.js
+
+console.log('[*] Obsidian Copilot Plus Bypass - Frida');
+
+// Hitta Electron renderer process
+const pid = /* Obsidian.exe PID */;
+
+// Hook isPlusUser metod
+// Electron app kör i V8, så vi kan hook JavaScript direkt
+
+// Variant 1: Hook require('electron').remote
+Interceptor.attach(Module.findExportByName('node.dll', 'node_module_register'), {
+    onEnter: function(args) {
+        console.log('[*] Module registration detected');
+    }
+});
+
+// Variant 2: Inject JavaScript direkt i renderer
+Java.perform(function() {
+    // Detta fungerar ej för Electron - använd annan metod
+});
+
+// För Electron, använd Frida's Script.evaluate
+rpc.exports = {
+    injectBypass: function() {
+        const script = `
+            (function() {
+                // Hook LicenseValidator.isPlusUser
+                const originalRequire = window.require;
+
+                window.require = function(module) {
+                    const loaded = originalRequire.apply(this, arguments);
+
+                    if (module.includes('license')) {
+                        console.log('[Frida] Hooked license module!');
+
+                        // Override isPlusUser
+                        const originalIsPlusUser = loaded.isPlusUser;
+                        loaded.isPlusUser = function() {
+                            console.log('[Frida] isPlusUser called - returning true');
+                            return true;  // ALWAYS PREMIUM
+                        };
+
+                        // Override validateLicense
+                        loaded.validateLicense = async function() {
+                            console.log('[Frida] validateLicense bypassed');
+                            return {
+                                valid: true,
+                                tier: 'plus',
+                                expires: Date.now() + 999999999,
+                                online_verified: true
+                            };
+                        };
+                    }
+
+                    return loaded;
+                };
+
+                console.log('[Frida] Bypass injected!');
+            })();
+        `;
+
+        return Script.evaluate(script);
+    }
+};
+```
+
+**Kör med Frida:**
+
+```bash
+# Hitta Obsidian process
+frida-ps | grep -i obsidian
+# Output: 12345  Obsidian.exe
+
+# Inject bypass
+frida -p 12345 -l obsidian_bypass.js
+
+# I Frida console:
+[Local::Obsidian.exe]-> rpc.exports.injectBypass()
+# [Frida] Bypass injected!
+# [Frida] Hooked license module!
+# [Frida] isPlusUser called - returning true
+```
+
+#### Exploit 3: x64dbg Binary Patching
+
+**Scenario**: Vad om license validation är compiled native code?
+
+**Använd x64dbg för att patcha binary direkt**
+
+**Steg 1: Öppna i x64dbg**
+
+```
+1. Starta x64dbg
+2. File → Open → Obsidian.exe
+3. Tryck F9 för att köra till entry point
+```
+
+**Steg 2: Hitta license validation**
+
+```assembly
+# I x64dbg command bar:
+bp LicenseValidator::isPlusUser
+
+# Eller sök efter string references
+Right-click → Search for → All modules → String references
+Sök: "plus", "premium", "license"
+
+# Hitta funktion som kollar tier:
+Address: 0x00007FF6A1234567
+00007FF6A1234567 | mov rax, qword ptr [rcx+0x18]  ; Load tier string
+00007FF6A123456E | lea rdx, [string "plus"]      ; Load "plus" reference
+00007FF6A1234575 | call strcmp                    ; Compare strings
+00007FF6A123457A | test eax, eax                  ; Check result
+00007FF6A123457C | je premium_features            ; Jump if equal
+00007FF6A123457E | jmp free_features              ; Else free tier
+```
+
+**Steg 3: Patch binary**
+
+```assembly
+# Ändra conditional jump till unconditional jump
+# Innan:
+00007FF6A123457C | je premium_features    ; 74 0C (JE = Jump if Equal)
+
+# Efter patch:
+00007FF6A123457C | jmp premium_features   ; EB 0C (JMP = Unconditional Jump)
+
+# Eller ännu enklare - returnera alltid true:
+00007FF6A1234567 | mov eax, 1            ; Return true
+00007FF6A123456C | ret                    ; Return immediately
+00007FF6A123456D | nop                    ; Fill rest with NOPs
+```
+
+**Steg 4: Spara patchad binary**
+
+```
+1. Högerklicka på patchad instruktion
+2. Välj "Patch → Patch file"
+3. Spara som "Obsidian_patched.exe"
+4. Kopiera över original
+```
+
+#### Exploit 4: Network Interception (MITM)
+
+**Scenario**: Bypassa online validation
+
+```bash
+# På Kali Linux - kör MITM proxy
+mitmproxy -p 8080 --mode transparent
+
+# Konfigurera Windows att använda proxy
+netsh winhttp set proxy proxy-server="kali-ip:8080"
+
+# Intercepta validation request:
+# POST https://api.obsidian-copilot.com/validate
+# {"license_key": "REAL-KEY-123"}
+
+# Modifiera response:
+# INNAN:
+# {"valid": false, "reason": "Invalid key"}
+
+# EFTER:
+# {"valid": true, "tier": "plus", "expires": 9999999999}
+```
+
+**Alternativ: DNS Spoofing**
+
+```bash
+# I /etc/hosts (Kali):
+echo "127.0.0.1 api.obsidian-copilot.com" >> /etc/hosts
+
+# Starta fake API server:
+python3 fake_api.py
+```
+
+```python
+# fake_api.py
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+@app.route('/validate', methods=['POST'])
+def validate():
+    """Fake validation - alltid returnera premium"""
+    data = request.json
+    print(f"[*] Validation request for: {data.get('license_key')}")
+
+    return jsonify({
+        'valid': True,
+        'tier': 'plus',
+        'expires': 9999999999000,
+        'features': ['ai_complete', 'pdf_export', 'custom_themes']
+    })
+
+if __name__ == '__main__':
+    # Lyssna på 443 (HTTPS) med self-signed cert
+    app.run(host='0.0.0.0', port=443, ssl_context='adhoc')
+```
+
+#### Exploit 5: Ghidra Deep Dive (Advanced)
+
+**För komplex obfuscated kod:**
+
+```bash
+# Öppna i Ghidra
+ghidraRun
+
+# Import Obsidian.exe
+# Auto-analyze med default settings
+
+# I Ghidra Symbol Tree:
+# Search → For Strings → "plus", "premium"
+```
+
+**Hitta obfuscated validation:**
+
+```c
+// Ghidra decompilation output
+bool __cdecl checkLicenseTier(struct License *license) {
+    char *tier;
+    int comparison;
+    bool result;
+
+    tier = license->tier;
+
+    // Obfuscated string comparison
+    // XOR-encoded "plus"
+    char encoded[] = { 0x73, 0x61, 0x78, 0x76 };  // XOR key: 0x03
+    char decoded[5];
+
+    for (int i = 0; i < 4; i++) {
+        decoded[i] = encoded[i] ^ 0x03;
+    }
+    decoded[4] = '\0';  // decoded = "plus"
+
+    comparison = strcmp(tier, decoded);
+
+    return comparison == 0;
+}
+```
+
+**Ghidra Script för att hitta alla validation points:**
+
+```python
+# find_license_checks.py (Ghidra script)
+
+from ghidra.program.model.symbol import SymbolType
+
+def find_string_refs(target_string):
+    """Hitta alla referenser till en string"""
+    refs = []
+
+    # Hitta string i memory
+    for addr in currentProgram.getMemory().getAllInitializedAddressSet():
+        try:
+            data = getDataAt(addr)
+            if data and data.hasStringValue():
+                if target_string in data.getValue():
+                    # Hitta code references
+                    xrefs = getReferencesTo(addr)
+                    for xref in xrefs:
+                        refs.append(xref.getFromAddress())
+        except:
+            pass
+
+    return refs
+
+# Sök efter "plus", "premium", "license"
+targets = ["plus", "premium", "license", "tier"]
+
+for target in targets:
+    print(f"\n[*] Searching for: {target}")
+    refs = find_string_refs(target)
+
+    for ref in refs:
+        print(f"    Found reference at: {ref}")
+        func = getFunctionContaining(ref)
+        if func:
+            print(f"    Function: {func.getName()}")
+```
+
+### Fas 3: Persistence & Automation
+
+**Skapa auto-patcher:**
+
+```python
+#!/usr/bin/env python3
+"""
+Obsidian Copilot Plus Auto-Patcher
+Automatiskt patchar Obsidian vid varje uppdatering
+"""
+
+import os
+import shutil
+import hashlib
+import json
+from pathlib import Path
+
+class ObsidianPatcher:
+    def __init__(self):
+        self.obsidian_dir = Path(os.environ['LOCALAPPDATA']) / 'Programs' / 'Obsidian'
+        self.backup_dir = Path.home() / '.obsidian_backups'
+        self.license_secret = 'ObsidianCopilotSecret2025'
+
+    def create_license(self):
+        """Skapa forged license file"""
+        import hmac
+        import time
+
+        license_data = {
+            'license_key': 'AUTO-PATCHED-LICENSE',
+            'tier': 'plus',
+            'expires': int(time.time() * 1000) + (365 * 24 * 60 * 60 * 1000)
+        }
+
+        # HMAC signature
+        payload = f"{license_data['license_key']}:{license_data['expires']}:{license_data['tier']}"
+        signature = hmac.new(
+            self.license_secret.encode(),
+            payload.encode(),
+            hashlib.sha256
+        ).hexdigest()
+
+        license_data['signature'] = signature
+
+        # Spara license
+        license_path = Path(os.environ['APPDATA']) / 'ObsidianCopilotPlus' / 'license.key'
+        license_path.parent.mkdir(parents=True, exist_ok=True)
+        license_path.write_text(json.dumps(license_data, indent=2))
+
+        print(f"[+] License created: {license_path}")
+
+    def patch_asar(self):
+        """Patcha app.asar för att disable online validation"""
+        asar_path = self.obsidian_dir / 'resources' / 'app.asar'
+
+        if not asar_path.exists():
+            print("[-] app.asar not found!")
+            return False
+
+        # Backup original
+        backup_path = self.backup_dir / f"app.asar.{int(time.time())}"
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy(asar_path, backup_path)
+
+        # Extract, patch, repack
+        os.system(f'asar extract "{asar_path}" "{self.backup_dir}/extracted"')
+
+        # Patch license.js
+        license_js = self.backup_dir / 'extracted' / 'plugins' / 'copilot-plus' / 'license.js'
+
+        if license_js.exists():
+            content = license_js.read_text()
+
+            # Replace online validation fallback
+            content = content.replace(
+                'return true;  // ← SÅRBARHET!',
+                'return true;  // Always valid in offline mode'
+            )
+
+            # Replace isPlusUser to always return true
+            content = content.replace(
+                'return license.valid && license.tier === \'plus\';',
+                'return true;  // Patched by auto-patcher'
+            )
+
+            license_js.write_text(content)
+
+        # Repack
+        os.system(f'asar pack "{self.backup_dir}/extracted" "{asar_path}"')
+
+        print("[+] app.asar patched successfully")
+        return True
+
+    def watch_for_updates(self):
+        """Watch för Obsidian updates och auto-patch"""
+        import time
+        from watchdog.observers import Observer
+        from watchdog.events import FileSystemEventHandler
+
+        class UpdateHandler(FileSystemEventHandler):
+            def __init__(self, patcher):
+                self.patcher = patcher
+
+            def on_modified(self, event):
+                if 'Obsidian.exe' in event.src_path:
+                    print("[*] Obsidian update detected!")
+                    time.sleep(2)  # Vänta på complete update
+                    self.patcher.patch_asar()
+                    self.patcher.create_license()
+
+        event_handler = UpdateHandler(self)
+        observer = Observer()
+        observer.schedule(event_handler, str(self.obsidian_dir), recursive=True)
+        observer.start()
+
+        print("[*] Watching for Obsidian updates...")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            observer.stop()
+        observer.join()
+
+    def run(self):
+        """Kör full patch"""
+        print("[*] Obsidian Copilot Plus Auto-Patcher")
+        print("[*] Creating license...")
+        self.create_license()
+
+        print("[*] Patching app.asar...")
+        self.patch_asar()
+
+        print("[+] Done! Restart Obsidian to apply patches")
+
+if __name__ == '__main__':
+    patcher = ObsidianPatcher()
+    patcher.run()
+
+    # Optional: watch för updates
+    # patcher.watch_for_updates()
+```
+
+### Fas 4: Bug Bounty Report
+
+```markdown
+# Vulnerability Report: Obsidian Copilot Plus License Bypass
+
+## Executive Summary
+Multiple critical vulnerabilities allow complete bypass of premium license
+validation, enabling unauthorized access to paid features.
+
+## Severity: CRITICAL
+- **CVSS Score**: 9.1 (Critical)
+- **Impact**: Complete revenue loss from desktop product
+- **Exploitability**: Trivial - no special tools required
+- **Affected Versions**: All versions tested (1.0.0 - 1.5.2)
+
+## Vulnerabilities
+
+### CVE-2025-0001: Hardcoded HMAC Secret
+**Description**: License signature verification uses hardcoded secret in client code.
+
+**Location**: `plugins/copilot-plus/license.js:25`
+
+```javascript
+const secret = 'ObsidianCopilotSecret2025';  // HARDCODED
+```
+
+**Impact**: Attackers can forge valid license files with arbitrary expiration dates.
+
+**Proof of Concept**: See forge_license.js
+
+**Remediation**:
+- Move signature verification to server-side only
+- Use asymmetric cryptography (RSA) for license signing
+- Store public key in client, private key on secure server
+
+### CVE-2025-0002: Offline Validation Bypass
+**Description**: Online validation falls back to accepting local license if network fails.
+
+**Location**: `plugins/copilot-plus/license.js:45`
+
+```javascript
+catch (error) {
+    return true;  // Accepts license if offline
+}
+```
+
+**Impact**: Attackers can block network access to force offline mode with forged license.
+
+**Remediation**:
+- Fail secure - deny access if online validation fails
+- Implement grace period (7 days) before requiring re-validation
+- Cache last successful validation result
+
+### CVE-2025-0003: User-Writable License File
+**Description**: License stored in user-accessible directory.
+
+**Location**: `%APPDATA%\ObsidianCopilotPlus\license.key`
+
+**Impact**: Users can directly modify license file.
+
+**Remediation**:
+- Store license in protected system directory
+- Use Windows DPAPI for encryption
+- Implement file integrity checks
+
+### CVE-2025-0004: No Runtime Integrity Protection
+**Description**: No anti-tampering or anti-debugging protection.
+
+**Impact**: Trivial to patch binary or hook runtime with Frida/x64dbg.
+
+**Remediation**:
+- Implement code signing verification
+- Add anti-debugging checks
+- Use obfuscation for critical code paths
+
+## Attack Vectors Demonstrated
+1. ✅ License file forgery (5 minutes to exploit)
+2. ✅ Frida runtime hooking (10 minutes)
+3. ✅ x64dbg binary patching (15 minutes)
+4. ✅ Network MITM bypass (20 minutes)
+5. ✅ Automated persistence (full auto-patcher developed)
+
+## Business Impact
+- **Revenue Loss**: Potential 100% piracy rate
+- **Reputation**: Product easily crackable damages brand
+- **Legal**: Violates payment processor ToS
+
+## Recommended Priority
+🚨 **P0 - Critical** - Fix within 7 days
+
+## Bounty Claim
+$15,000 (Critical severity + working exploits + remediation guidance)
+```
+
+---
+
+## 🔵 BLUE TEAM: Comprehensive Security Overhaul
+
+### Defense Strategy: Multi-Layered Protection
+
+```
+┌────────────────────────────────────────────┐
+│        DEFENSE IN DEPTH - 6 LAYERS         │
+└────────────────────────────────────────────┘
+
+Layer 1: Server-Side License Management
+Layer 2: Asymmetric Cryptography
+Layer 3: Code Obfuscation & Packing
+Layer 4: Runtime Integrity Monitoring
+Layer 5: Hardware-Backed License (TPM)
+Layer 6: Behavioral Analytics
+```
+
+### Layer 1: Server-Side License Management
+
+**Arkitektur-redesign:**
+
+```
+INNAN (Sårbar):
+┌─────────────┐
+│   Client    │
+│  (Validerar │ ← Litar på client
+│   själv)    │
+└─────────────┘
+
+EFTER (Säker):
+┌─────────────┐         ┌──────────────┐
+│   Client    │────────→│   Server     │
+│ (Request    │         │  (Validerar  │
+│  features)  │←────────│   & Bestämmer)│
+└─────────────┘         └──────────────┘
+```
+
+**Implementation:**
+
+```javascript
+// client/license_client.js
+class SecureLicenseClient {
+    constructor() {
+        this.apiBase = 'https://api.obsidian-copilot.com';
+        this.sessionToken = null;
+        this.featureCache = new Map();
+    }
+
+    async initSession() {
+        // Hämta session token från server
+        const response = await fetch(`${this.apiBase}/session/init`, {
+            method: 'POST',
+            headers: {
+                'X-Device-ID': this.getDeviceId(),
+                'X-App-Version': app.getVersion()
+            }
+        });
+
+        const data = await response.json();
+        this.sessionToken = data.session_token;
+
+        // Token är signed av server, innehåller encrypted license info
+        return this.sessionToken;
+    }
+
+    async checkFeatureAccess(featureName) {
+        // VARJE feature check går till server
+        const response = await fetch(`${this.apiBase}/features/check`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${this.sessionToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                feature: featureName,
+                timestamp: Date.now(),
+                nonce: crypto.randomBytes(16).toString('hex')
+            })
+        });
+
+        if (response.status !== 200) {
+            return false;  // Fail secure
+        }
+
+        const result = await response.json();
+
+        // Verifiera server signature
+        if (!this.verifyServerSignature(result)) {
+            return false;
+        }
+
+        // Cache result för 5 minuter
+        this.featureCache.set(featureName, {
+            allowed: result.allowed,
+            expires: Date.now() + (5 * 60 * 1000)
+        });
+
+        return result.allowed;
+    }
+
+    verifyServerSignature(data) {
+        // Verifiera med server's public key (RSA)
+        const publicKey = this.getServerPublicKey();
+
+        const signature = Buffer.from(data.signature, 'base64');
+        const payload = JSON.stringify({
+            allowed: data.allowed,
+            feature: data.feature,
+            timestamp: data.timestamp
+        });
+
+        const verify = crypto.createVerify('RSA-SHA256');
+        verify.update(payload);
+
+        return verify.verify(publicKey, signature);
+    }
+
+    getServerPublicKey() {
+        // Public key embedded in app (cannot forge without private key)
+        return `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...
+-----END PUBLIC KEY-----`;
+    }
+
+    getDeviceId() {
+        // Unique device identifier
+        const os = require('os');
+        const crypto = require('crypto');
+
+        const components = [
+            os.hostname(),
+            os.platform(),
+            os.cpus()[0].model
+        ].join('|');
+
+        return crypto.createHash('sha256').update(components).digest('hex');
+    }
+}
+```
+
+**Server-side:**
+
+```python
+# server/license_server.py
+from flask import Flask, request, jsonify
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+import jwt
+import time
+
+app = Flask(__name__)
+
+# RSA private key (kept secret on server ONLY)
+private_key = rsa.generate_private_key(
+    public_exponent=65537,
+    key_size=2048
+)
+
+# License database
+licenses = {
+    'user@example.com': {
+        'tier': 'plus',
+        'expires': time.time() + (365 * 24 * 60 * 60),
+        'device_limit': 3,
+        'devices': []
+    }
+}
+
+@app.route('/session/init', methods=['POST'])
+def init_session():
+    """Initialize secure session"""
+    device_id = request.headers.get('X-Device-ID')
+    app_version = request.headers.get('X-App-Version')
+
+    # TODO: Verify device_id med hardware fingerprint
+    # TODO: Check app_version är latest/supported
+
+    # Skapa session token (JWT)
+    # Men innehåller EJ license tier - det kollas runtime
+    token = jwt.encode({
+        'device_id': device_id,
+        'issued_at': time.time(),
+        'expires': time.time() + 3600  # 1 hour session
+    }, str(private_key), algorithm='RS256')
+
+    return jsonify({
+        'session_token': token,
+        'expires_in': 3600
+    })
+
+@app.route('/features/check', methods=['POST'])
+def check_feature():
+    """Verify if user can access feature"""
+    auth_header = request.headers.get('Authorization', '')
+
+    if not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'Invalid authorization'}), 401
+
+    token = auth_header.replace('Bearer ', '')
+
+    try:
+        # Verify JWT token
+        decoded = jwt.decode(token, private_key.public_key(), algorithms=['RS256'])
+        device_id = decoded['device_id']
+
+    except jwt.ExpiredSignatureError:
+        return jsonify({'error': 'Session expired'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'error': 'Invalid token'}), 401
+
+    # Get requested feature
+    data = request.json
+    feature = data.get('feature')
+    timestamp = data.get('timestamp')
+    nonce = data.get('nonce')
+
+    # Verify timestamp (prevent replay attacks)
+    if abs(time.time() * 1000 - timestamp) > 60000:  # 60 seconds window
+        return jsonify({'error': 'Request too old'}), 400
+
+    # Verify nonce (skulle sparas i redis för att förhindra reuse)
+    # TODO: Check nonce hasn't been used before
+
+    # Get user license from device_id
+    user_license = get_license_for_device(device_id)
+
+    if not user_license:
+        return jsonify({
+            'allowed': False,
+            'reason': 'No active license'
+        }), 403
+
+    # Check if feature is available for tier
+    feature_allowed = check_feature_for_tier(feature, user_license['tier'])
+
+    # Check expiration
+    if user_license['expires'] < time.time():
+        feature_allowed = False
+
+    # Create signed response
+    response_data = {
+        'allowed': feature_allowed,
+        'feature': feature,
+        'timestamp': int(time.time() * 1000)
+    }
+
+    # Sign response med private key
+    payload_bytes = json.dumps(response_data, sort_keys=True).encode()
+
+    signature = private_key.sign(
+        payload_bytes,
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH
+        ),
+        hashes.SHA256()
+    )
+
+    response_data['signature'] = base64.b64encode(signature).decode()
+
+    # Log request för anomaly detection
+    log_feature_request(device_id, feature, feature_allowed)
+
+    return jsonify(response_data)
+
+def get_license_for_device(device_id):
+    """Get license data for device"""
+    # Sök i database
+    # TODO: Real database lookup
+    for email, license_data in licenses.items():
+        if device_id in license_data.get('devices', []):
+            return license_data
+    return None
+
+def check_feature_for_tier(feature, tier):
+    """Check if feature available for tier"""
+    feature_tiers = {
+        'ai_complete': 'plus',
+        'pdf_export': 'plus',
+        'custom_themes': 'plus',
+        'basic_editor': 'free'
+    }
+
+    required_tier = feature_tiers.get(feature, 'plus')
+
+    tier_hierarchy = {'free': 0, 'plus': 1}
+
+    return tier_hierarchy.get(tier, 0) >= tier_hierarchy.get(required_tier, 1)
+```
+
+### Layer 2: Code Obfuscation & Protection
+
+**JavaScript Obfuscation:**
+
+```javascript
+// webpack.config.js
+const JavaScriptObfuscator = require('webpack-obfuscator');
+
+module.exports = {
+    // ... config
+
+    plugins: [
+        new JavaScriptObfuscator({
+            // Maximum obfuscation
+            compact: true,
+            controlFlowFlattening: true,
+            controlFlowFlatteningThreshold: 1,
+            deadCodeInjection: true,
+            deadCodeInjectionThreshold: 0.4,
+            debugProtection: true,
+            debugProtectionInterval: 4000,
+            disableConsoleOutput: true,
+            identifierNamesGenerator: 'hexadecimal',
+            log: false,
+            numbersToExpressions: true,
+            renameGlobals: false,
+            selfDefending: true,
+            simplify: true,
+            splitStrings: true,
+            splitStringsChunkLength: 5,
+            stringArray: true,
+            stringArrayCallsTransform: true,
+            stringArrayEncoding: ['rc4'],
+            stringArrayIndexShift: true,
+            stringArrayRotate: true,
+            stringArrayShuffle: true,
+            stringArrayWrappersCount: 5,
+            stringArrayWrappersChainedCalls: true,
+            stringArrayWrappersParametersMaxCount: 5,
+            stringArrayWrappersType: 'function',
+            stringArrayThreshold: 1,
+            transformObjectKeys: true,
+            unicodeEscapeSequence: false
+        }, ['license.js', 'features.js'])
+    ]
+};
+```
+
+**Native Module Protection:**
+
+```cpp
+// native_validator.cc (C++ Native Node module)
+#include <node.h>
+#include <windows.h>
+#include <wincrypt.h>
+
+// Anti-debugging
+bool IsDebuggerPresent() {
+    // Check multiple methods
+    if (::IsDebuggerPresent()) return true;
+
+    // Check PEB
+    BOOL isDebuggerPresent = FALSE;
+    CheckRemoteDebuggerPresent(GetCurrentProcess(), &isDebuggerPresent);
+    if (isDebuggerPresent) return true;
+
+    // Timing check
+    DWORD startTime = GetTickCount();
+    __asm {
+        nop
+        nop
+        nop
+    }
+    DWORD endTime = GetTickCount();
+
+    if (endTime - startTime > 100) return true;  // Debugger detected
+
+    return false;
+}
+
+// Encrypted license validation
+void ValidateLicense(const v8::FunctionCallbackInfo<v8::Value>& args) {
+    v8::Isolate* isolate = args.GetIsolate();
+
+    // Anti-debugging check
+    if (IsDebuggerPresent()) {
+        isolate->ThrowException(v8::Exception::Error(
+            v8::String::NewFromUtf8(isolate, "Debugger detected").ToLocalChecked()));
+        return;
+    }
+
+    // License validation logic...
+    // Use Windows DPAPI for decryption
+    DATA_BLOB dataIn;
+    DATA_BLOB dataOut;
+
+    // Read encrypted license...
+    BOOL result = CryptUnprotectData(&dataIn, NULL, NULL, NULL, NULL, 0, &dataOut);
+
+    if (result) {
+        // Validate...
+        args.GetReturnValue().Set(v8::Boolean::New(isolate, true));
+    } else {
+        args.GetReturnValue().Set(v8::Boolean::New(isolate, false));
+    }
+}
+
+void Initialize(v8::Local<v8::Object> exports) {
+    NODE_SET_METHOD(exports, "validateLicense", ValidateLicense);
+}
+
+NODE_MODULE(NODE_GYP_MODULE_NAME, Initialize)
+```
+
+### Layer 3: Runtime Integrity Monitoring
+
+```javascript
+// integrity_monitor.js
+class IntegrityMonitor {
+    constructor() {
+        this.checks = [];
+        this.violations = 0;
+        this.startMonitoring();
+    }
+
+    startMonitoring() {
+        // Check 1: Debugger detection
+        setInterval(() => {
+            const start = Date.now();
+            debugger;  // Will pause if debugger attached
+            const end = Date.now();
+
+            if (end - start > 100) {
+                this.handleViolation('Debugger detected');
+            }
+        }, 5000);
+
+        // Check 2: Code integrity
+        setInterval(() => {
+            this.verifyCodeIntegrity();
+        }, 10000);
+
+        // Check 3: Module tampering
+        setInterval(() => {
+            this.checkModuleTampering();
+        }, 15000);
+    }
+
+    verifyCodeIntegrity() {
+        // Hash kritiska funktioner
+        const criticalFunctions = [
+            LicenseValidator.prototype.validateLicense,
+            LicenseValidator.prototype.isPlusUser
+        ];
+
+        for (const func of criticalFunctions) {
+            const funcStr = func.toString();
+            const hash = crypto.createHash('sha256').update(funcStr).digest('hex');
+
+            // Jämför med expected hash
+            const expected = this.getExpectedHash(func.name);
+
+            if (hash !== expected) {
+                this.handleViolation(`Function tampering detected: ${func.name}`);
+            }
+        }
+    }
+
+    checkModuleTampering() {
+        // Kolla om require har blivit hookad
+        const originalRequire = module.constructor.prototype.require;
+
+        if (originalRequire.toString() !== this.originalRequireString) {
+            this.handleViolation('require() has been hooked');
+        }
+    }
+
+    handleViolation(reason) {
+        this.violations++;
+
+        // Logga till server
+        fetch('https://api.obsidian-copilot.com/security/violation', {
+            method: 'POST',
+            body: JSON.stringify({
+                reason,
+                timestamp: Date.now(),
+                device_id: getDeviceId(),
+                violations_count: this.violations
+            })
+        });
+
+        // Vid för många violations - disable app
+        if (this.violations > 3) {
+            this.disableApp();
+        }
+    }
+
+    disableApp() {
+        // Rensa alla features
+        // Visa felmeddelande
+        // Kräv re-installation
+
+        document.body.innerHTML = `
+            <div style="text-align: center; padding: 50px;">
+                <h1>Security Violation Detected</h1>
+                <p>The application has detected tampering and must be reinstalled.</p>
+                <p>Please download a fresh copy from obsidian.md</p>
+            </div>
+        `;
+
+        // Exit process
+        if (process && process.exit) {
+            process.exit(1);
+        }
+    }
+
+    getExpectedHash(funcName) {
+        // Pre-calculated hashes
+        const hashes = {
+            'validateLicense': 'a1b2c3d4e5f6...',
+            'isPlusUser': 'f6e5d4c3b2a1...'
+        };
+
+        return hashes[funcName];
+    }
+}
+
+// Start monitoring
+new IntegrityMonitor();
+```
+
+### Layer 4: Hardware-Backed Licensing (TPM)
+
+```cpp
+// tpm_license.cc
+#include <Windows.h>
+#include <tbs.h>
+
+class TPMLicenseManager {
+public:
+    bool storeLicense(const std::string& licenseData) {
+        // Store license in TPM NVRAM
+        TBS_HCONTEXT hContext;
+
+        TBS_CONTEXT_PARAMS2 contextParams;
+        contextParams.version = TBS_CONTEXT_VERSION_TWO;
+        contextParams.requestRaw = FALSE;
+        contextParams.includeTpm12 = FALSE;
+        contextParams.includeTpm20 = TRUE;
+
+        HRESULT hr = Tbsi_Context_Create((PCTBS_CONTEXT_PARAMS)&contextParams, &hContext);
+
+        if (FAILED(hr)) {
+            return false;
+        }
+
+        // Write to TPM NV
+        // TPM2_NV_Write...
+
+        Tbsip_Context_Close(hContext);
+
+        return true;
+    }
+
+    std::string retrieveLicense() {
+        // Read from TPM
+        // Cannot be extracted even with memory dump
+
+        // TPM2_NV_Read...
+
+        return decryptedLicense;
+    }
+
+    bool validateWithTPM(const std::string& challenge) {
+        // Use TPM to sign challenge
+        // Proves device has valid license AND correct hardware
+
+        // TPM2_Sign...
+
+        return true;
+    }
+};
+```
+
+### Layer 5: Continuous Server Validation
+
+```python
+# server/continuous_validation.py
+import asyncio
+from datetime import datetime, timedelta
+
+class ContinuousValidator:
+    """
+    Kräv periodic re-validation även under användning
+    """
+
+    def __init__(self):
+        self.active_sessions = {}  # device_id -> session_data
+
+    async def start_session(self, device_id, license):
+        """Start validation session"""
+        session = {
+            'device_id': device_id,
+            'license': license,
+            'started_at': datetime.now(),
+            'last_heartbeat': datetime.now(),
+            'heartbeat_required_interval': 300,  # 5 minuter
+            'violations': 0
+        }
+
+        self.active_sessions[device_id] = session
+
+        # Start heartbeat monitor
+        asyncio.create_task(self.monitor_heartbeat(device_id))
+
+    async def monitor_heartbeat(self, device_id):
+        """Monitor heartbeat från client"""
+        while device_id in self.active_sessions:
+            session = self.active_sessions[device_id]
+
+            time_since_heartbeat = (datetime.now() - session['last_heartbeat']).seconds
+
+            if time_since_heartbeat > session['heartbeat_required_interval']:
+                # Client har inte skickat heartbeat
+                session['violations'] += 1
+
+                if session['violations'] > 2:
+                    # Suspend license
+                    await self.suspend_session(device_id, 'Missing heartbeats')
+
+            await asyncio.sleep(60)  # Check varje minut
+
+    @app.route('/heartbeat', methods=['POST'])
+    async def heartbeat():
+        """Client heartbeat endpoint"""
+        data = request.json
+        device_id = data['device_id']
+
+        if device_id in validator.active_sessions:
+            validator.active_sessions[device_id]['last_heartbeat'] = datetime.now()
+
+            # Return instructions
+            return jsonify({
+                'status': 'ok',
+                'next_heartbeat_in': 300,
+                'license_valid': True
+            })
+        else:
+            return jsonify({'error': 'No active session'}), 401
+```
+
+### Layer 6: Behavioral Analytics
+
+```python
+# server/behavioral_analytics.py
+from sklearn.ensemble import IsolationForest
+import numpy as np
+
+class LicenseAbuseDetector:
+    """
+    Detect abnormal usage patterns that indicate piracy
+    """
+
+    def __init__(self):
+        self.model = IsolationForest(contamination=0.05)
+        self.trained = False
+
+    def extract_features(self, usage_data):
+        """Extract features from usage"""
+        return [
+            usage_data['daily_active_hours'],
+            usage_data['features_used_count'],
+            usage_data['ai_requests_per_hour'],
+            usage_data['export_count_per_day'],
+            usage_data['unique_ips_per_week'],
+            usage_data['device_switches_per_week'],
+            usage_data['offline_percentage'],
+            usage_data['validation_failures'],
+        ]
+
+    def detect_abuse(self, device_id, usage_data):
+        """Detect if usage pattern indicates piracy"""
+
+        features = self.extract_features(usage_data)
+
+        if not self.trained:
+            return {'is_abuse': False, 'confidence': 0}
+
+        prediction = self.model.predict([features])[0]
+        score = self.model.score_samples([features])[0]
+
+        is_abuse = prediction == -1
+        confidence = abs(score)
+
+        if is_abuse and confidence > 0.8:
+            # High confidence abuse
+            log_security_event('license_abuse_detected', {
+                'device_id': device_id,
+                'confidence': confidence,
+                'features': features
+            })
+
+            # Temporary suspend license för investigation
+            suspend_license(device_id, duration=timedelta(hours=24))
+
+        return {
+            'is_abuse': is_abuse,
+            'confidence': float(confidence),
+            'score': float(score)
+        }
+```
+
+---
+
+## 📊 Results & Metrics
+
+### Security Improvements
+
+| Layer                     | Before | After  | Improvement |
+|---------------------------|--------|--------|-------------|
+| License Forgery          | 100%   | 0%     | ✅ Blocked  |
+| Runtime Hooking          | 100%   | 15%*   | ✅ 85% reduction |
+| Binary Patching          | 100%   | 20%*   | ✅ 80% reduction |
+| Network Bypass           | 100%   | 0%     | ✅ Blocked  |
+| Persistence              | 100%   | 5%*    | ✅ 95% reduction |
+
+\* Remaining attacks require significant expertise and are detected
+
+### Business Impact
+
+**Before:**
+- Estimated piracy rate: 40-60%
+- Revenue loss: $500,000/year
+- Support costs from pirates: High
+
+**After (Projected):**
+- Estimated piracy rate: <5%
+- Revenue protection: $475,000/year
+- Support costs: Reduced 80%
+- ROI: ~3200%
+
+### Detection Capabilities
+
+```
+┌──────────────────────────────────────────┐
+│         DETECTION CAPABILITIES            │
+└──────────────────────────────────────────┘
+
+Debugger Detection:      99% effective
+Code Tampering:          95% effective
+License Forgery:         100% effective
+Behavioral Anomalies:    85% effective
+Network Bypass:          100% effective
+
+Mean Time to Detection:  <30 seconds
+False Positive Rate:     <0.1%
+```
+
+---
+
+## 🎓 Key Learnings
+
+### For Red Team
+
+**Desktop App Exploitation:**
+1. Electron apps är "JavaScript in disguise" - lätt att reverse engineera
+2. x64dbg är kraftfullt för native code patching
+3. Kombinera Ghidra (static) + Frida (dynamic) + x64dbg (debug)
+4. License files på user-writable locations = easy target
+5. Hardcoded secrets = instant compromise
+
+**Tools Mastery:**
+- **Ghidra**: Best för initial reverse engineering
+- **Frida**: Best för runtime manipulation
+- **x64dbg**: Best för native code debugging & patching
+- **asar**: Electron apps är bara zip-filer!
+
+### For Blue Team
+
+**Security Principles:**
+1. **Never trust the client** - all validation server-side
+2. **Defense in Depth** - 6 layers better than 1
+3. **Hardware backing** - TPM makes extraction impossible
+4. **Continuous validation** - not just at startup
+5. **Behavioral analysis** - detect abuse patterns
+6. **Fail secure** - deny access when in doubt
+
+**Implementation Priorities:**
+1. **Immediate** (Week 1):
+   - Remove hardcoded secrets
+   - Move validation to server
+   - Implement asymmetric crypto
+
+2. **Short-term** (Month 1):
+   - Code obfuscation
+   - Anti-debugging measures
+   - Runtime integrity checks
+
+3. **Long-term** (Quarter 1):
+   - TPM integration
+   - ML behavioral analytics
+   - Continuous monitoring
+
+---
+
+## 🎯 Final Exercise
+
+**Scenario**: Du är Blue Team lead efter denna disclosure. Du har:
+- **Budget**: $50,000
+- **Timeline**: 60 days
+- **Goal**: Reduce piracy från 50% till <10%
+
+**Designa din strategi:**
+
+1. Vilka 3 åtgärder implementerar du först?
+2. Hur mäter du framgång?
+3. Hur balanserar du security vs user experience?
+4. Vad är din long-term roadmap?
+
+<details>
+<summary>Rekommenderad Lösning</summary>
+
+**Phase 1 (Days 1-14): Emergency Patches - $10,000**
+- Remove hardcoded secrets → asymmetric crypto (RSA)
+- Move license validation to server
+- Implement continuous heartbeat (every 5 min)
+- **Expected impact**: Block 80% of current piracy
+
+**Phase 2 (Days 15-30): Code Protection - $15,000**
+- Obfuscate JavaScript (webpack-obfuscator)
+- Add native module for critical functions
+- Implement basic anti-debugging
+- **Expected impact**: Block additional 10%
+
+**Phase 3 (Days 31-45): Monitoring - $15,000**
+- Build behavioral analytics system
+- Real-time abuse detection
+- Automated response (temp suspend suspicious accounts)
+- **Expected impact**: Detect and prevent 5%
+
+**Phase 4 (Days 46-60): Long-term - $10,000**
+- TPM research & PoC
+- Community engagement (reduce piracy motivation)
+- Flexible pricing tiers
+- **Expected impact**: Maintain <10% piracy rate
+
+**Success Metrics**:
+- License validation API calls (should increase if fewer pirates)
+- Support tickets from "trial users" (should decrease)
+- Revenue growth (should correlate with piracy reduction)
+- Security events logged (track attack attempts)
+
+**User Experience Balance**:
+- Grace period: 7 days offline before requiring validation
+- Transparent communication about why checks exist
+- Easy support for legitimate users with issues
+- Fair pricing to reduce piracy motivation
+
+</details>
+
+---
+
+**Grattis! Du har nu mästrat både web OCH desktop application security!** 🏆
+
+*Obsidian Case Study - Real-World Desktop Security*
+*"The best copy protection is no protection - make your product worth paying for"*
+*Skapad: 2025 - Educational Purposes Only*
+
+
