@@ -4795,3 +4795,1379 @@ Du har nu den ultimata triaden för reverse engineering:
 *Frida Version: 17.4.x*
 *Kali Linux: 2025.x*
 
+---
+
+# 🎯 BONUSUPPGIFT: Red Team vs Blue Team - Internal Bug Bounty
+
+## 🏴‍☠️ Scenario: Warp Terminal Payment Bypass Challenge
+
+**Kontext**: Ditt företag har utvecklat en premium terminal-applikation kallad "Warp Console" med följande features:
+- Free tier: Grundläggande funktionalitet
+- Premium tier: AI-assistans, team-collaboration, themes
+
+**Bug Bounty Mission**: Internal security team har startat en kontrollerad övning där:
+- **Red Team**: Ska försöka kringgå premium-betalningen
+- **Blue Team**: Ska hitta och patcha sårbarheten
+
+**Regler**:
+- ✅ Endast på test-instans
+- ✅ Dokumentera alla fynd
+- ✅ Dela resultat med Blue Team
+- ❌ ALDRIG på produktion
+- ❌ ALDRIG dela exploits publikt
+
+---
+
+## 🔴 DEL 1: RED TEAM - Pedagogiskt Facit
+
+### Fas 1: Reconnaissance (Spaning)
+
+**Mål**: Förstå applikationens arkitektur och hitta betalningslogik
+
+#### Steg 1.1: Initial Analys
+
+```bash
+# Lista processer
+frida-ps | grep -i warp
+# Output: 12345 Warp Console
+
+# Inspektera med strings
+strings /usr/bin/warp-console | grep -i "premium\|license\|payment"
+# Output:
+# checkPremiumStatus
+# validateLicense
+# https://api.warp.dev/v1/verify-subscription
+```
+
+**Fynd**: Appen verkar ha funktioner för premium-kontroll och licensvalidering.
+
+#### Steg 1.2: Nätverksanalys
+
+```bash
+# Proxya trafik genom mitmproxy
+mitmproxy -p 8080
+
+# Konfigurera Warp att använda proxy
+export HTTP_PROXY=http://localhost:8080
+export HTTPS_PROXY=http://localhost:8080
+
+# Starta Warp
+/usr/bin/warp-console
+```
+
+**Observerat nätverksanrop:**
+
+```http
+GET /v1/verify-subscription HTTP/1.1
+Host: api.warp.dev
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+User-Agent: WarpConsole/1.2.0
+
+Response:
+{
+  "premium": false,
+  "features": ["basic_terminal"],
+  "expires_at": null
+}
+```
+
+**Fynd**: Premium-status kontrolleras via API-anrop.
+
+#### Steg 1.3: Statisk Analys med Ghidra
+
+```bash
+# Öppna binary i Ghidra
+ghidraRun /usr/bin/warp-console
+```
+
+**I Ghidra Symbol Tree, hitta:**
+
+```c
+// Pseudo-code från Ghidra
+bool checkPremiumAccess() {
+    json response = httpGet("https://api.warp.dev/v1/verify-subscription");
+
+    if (response["premium"] == true) {
+        enablePremiumFeatures();
+        return true;
+    }
+
+    return false;
+}
+
+void enableAIAssistant() {
+    if (isPremiumUser) {  // ← Kolla denna variabel
+        initAIFeatures();
+    } else {
+        showUpgradeDialog();
+    }
+}
+```
+
+**Kritiskt fynd**:
+- Global variabel `isPremiumUser` styr features
+- Enkel boolean-check utan kryptografisk verifiering
+
+### Fas 2: Identifiera Sårbarhet
+
+**Sårbarhet #1: Client-side Premium Check**
+
+```
+┌────────────────────────────────────────┐
+│         FLAWED ARCHITECTURE            │
+└────────────────────────────────────────┘
+
+    Client (Warp Console)
+    ┌─────────────────────────────┐
+    │ 1. API: isPremium?          │
+    │    Response: false          │
+    │                             │
+    │ 2. if (isPremiumUser)       │ ← SÅRBAR!
+    │       enableFeatures()      │
+    │                             │
+    └─────────────────────────────┘
+
+PROBLEM: Klienten fattar beslut om premium-features
+ATTACK: Modifiera isPremiumUser till true
+```
+
+**Sårbarhet #2: Ingen Runtime Integrity Check**
+
+- Ingen anti-tampering
+- Ingen code signing verification
+- Ingen Frida-detection
+
+### Fas 3: Exploit Development
+
+#### Exploit 1: Frida Hook - Boolean Manipulation
+
+**warp_bypass_v1.js:**
+
+```javascript
+console.log("[*] Warp Console Premium Bypass - v1");
+console.log("[*] Target: Boolean manipulation");
+
+// Hitta checkPremiumAccess funktion
+var baseAddr = Module.findBaseAddress("warp-console");
+console.log("[*] Base address: " + baseAddr);
+
+// Hook checkPremiumAccess
+var checkPremiumPtr = Module.findExportByName("warp-console", "_Z18checkPremiumAccessv");
+
+if (checkPremiumPtr) {
+    Interceptor.attach(checkPremiumPtr, {
+        onLeave: function(retval) {
+            console.log("[*] Original premium status: " + retval);
+            retval.replace(1);  // Ändra till true
+            console.log("[+] Modified to: true");
+        }
+    });
+    console.log("[+] Successfully hooked checkPremiumAccess!");
+}
+
+// Hook isPremiumUser variabel
+var isPremiumUserAddr = baseAddr.add(0x12A4E0);  // Från Ghidra
+Memory.writeU8(isPremiumUserAddr, 1);
+console.log("[+] Set isPremiumUser = true");
+```
+
+**Kör exploiten:**
+
+```bash
+frida -l warp_bypass_v1.js warp-console
+```
+
+**Resultat:**
+
+```
+[*] Warp Console Premium Bypass - v1
+[*] Target: Boolean manipulation
+[*] Base address: 0x555555554000
+[+] Successfully hooked checkPremiumAccess!
+[+] Set isPremiumUser = true
+
+[Warp Console]
+✅ Premium Features Unlocked
+   - AI Assistant: Enabled
+   - Team Collaboration: Enabled
+   - Premium Themes: Enabled
+```
+
+#### Exploit 2: API Response Manipulation
+
+**warp_bypass_v2.js:**
+
+```javascript
+console.log("[*] Warp Console Premium Bypass - v2");
+console.log("[*] Target: API Response manipulation");
+
+// Hook HTTPS response parsing
+Interceptor.attach(Module.findExportByName("libcurl.so", "curl_easy_perform"), {
+    onEnter: function(args) {
+        this.curl_handle = args[0];
+    },
+    onLeave: function(retval) {
+        // Efter HTTP-anrop, modifiera response
+        if (retval == 0) {  // CURLE_OK
+            console.log("[*] curl_easy_perform succeeded");
+        }
+    }
+});
+
+// Hook JSON parsing
+var jsonParsePtr = Module.findExportByName("warp-console", "_Z9parseJsonPKc");
+
+Interceptor.attach(jsonParsePtr, {
+    onEnter: function(args) {
+        var jsonStr = Memory.readUtf8String(args[0]);
+        console.log("[*] Original JSON: " + jsonStr);
+
+        if (jsonStr.includes('"premium":false')) {
+            // Modifiera JSON innan parsing
+            var modifiedJson = jsonStr.replace('"premium":false', '"premium":true');
+            Memory.writeUtf8String(args[0], modifiedJson);
+            console.log("[+] Modified JSON: " + modifiedJson);
+        }
+    }
+});
+```
+
+#### Exploit 3: Persistent Patch (Advanced)
+
+**warp_persistent_patch.py:**
+
+```python
+#!/usr/bin/env python3
+"""
+Persistent binary patch för Warp Console
+VARNING: Endast för educational purposes i kontrollerad miljö!
+"""
+
+import sys
+
+def patch_binary(binary_path):
+    """
+    Patchar binären för att alltid returnera premium=true
+    """
+    with open(binary_path, 'rb') as f:
+        data = bytearray(f.read())
+
+    # Hitta checkPremiumAccess funktion
+    # Offset 0x3A42: Returnerar premium status
+    # Original: 48 8B 45 F8    mov rax, [rbp-8]    ; Load premium status
+    #          84 C0          test al, al          ; Test if true
+    #          74 0E          je short NO_PREMIUM  ; Jump if false
+    #
+    # Patch:   B0 01          mov al, 1            ; Sätt alltid till true
+    #          90             nop
+    #          90             nop
+    #          90             nop
+
+    offset = 0x3A42
+    original = bytes([0x48, 0x8B, 0x45, 0xF8, 0x84, 0xC0])
+    patch = bytes([0xB0, 0x01, 0x90, 0x90, 0x90, 0x90])
+
+    if data[offset:offset+len(original)] == original:
+        data[offset:offset+len(patch)] = patch
+        print(f"[+] Patched at offset 0x{offset:X}")
+
+        # Skriv patchad binary
+        with open(binary_path + '.patched', 'wb') as f:
+            f.write(data)
+        print(f"[+] Saved to {binary_path}.patched")
+        return True
+    else:
+        print("[-] Binary does not match expected pattern")
+        return False
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <warp-console-binary>")
+        sys.exit(1)
+
+    patch_binary(sys.argv[1])
+```
+
+### Fas 4: Documentation & Reporting
+
+**Bug Bounty Report:**
+
+```markdown
+# Vulnerability Report: Warp Console Premium Bypass
+
+## Summary
+Client-side premium verification allows attackers to unlock premium features
+without payment through runtime manipulation.
+
+## Severity: HIGH
+- **CVSS Score**: 7.5
+- **Impact**: Revenue loss, unauthorized feature access
+- **Likelihood**: High (trivial to exploit with Frida)
+
+## Vulnerability Details
+
+### Root Cause
+Premium feature access is controlled by client-side boolean checks without
+server-side enforcement.
+
+### Attack Vectors
+1. **Frida Runtime Manipulation**: Hook checkPremiumAccess() → return true
+2. **API Response Tampering**: Modify JSON response before parsing
+3. **Binary Patching**: Permanent modification of executable
+
+### Proof of Concept
+See attached: warp_bypass_v1.js
+
+## Reproduction Steps
+1. Install Frida: `pip install frida-tools`
+2. Run: `frida -l warp_bypass_v1.js warp-console`
+3. Observe: All premium features unlocked
+
+## Recommendations
+See Blue Team section for remediation.
+
+## Timeline
+- 2025-01-15: Vulnerability discovered
+- 2025-01-15: Reported to Blue Team
+- 2025-01-16: Fix implemented
+- 2025-01-20: Patch deployed
+
+## Bounty Claim
+$5,000 (High severity, clear PoC, actionable recommendations)
+```
+
+---
+
+## 🔵 DEL 2: BLUE TEAM - Pedagogiskt Facit
+
+### Fas 1: Vulnerability Assessment
+
+**Mottagande av Red Team Report:**
+
+```bash
+# Verifiera exploit
+frida -l warp_bypass_v1.js warp-console
+
+# Resultat: ✅ Confirmed - Exploitable
+```
+
+**Severity Analysis:**
+
+| Faktor              | Bedömning | Poäng |
+|---------------------|-----------|-------|
+| Exploitability      | Trivial   | 10/10 |
+| Impact              | Revenue loss | 8/10 |
+| Affected Users      | All free users | 10/10 |
+| Detection Difficulty| Hard      | 9/10  |
+
+**Slutsats**: Kritisk sårbarhet - omedelbar åtgärd krävs
+
+### Fas 2: Root Cause Analysis
+
+**Arkitektur-diagram (Nuvarande - Sårbar):**
+
+```
+┌─────────────────────────────────────────────────────┐
+│                 VULNERABLE FLOW                      │
+└─────────────────────────────────────────────────────┘
+
+Client                          Server
+┌──────────────┐               ┌──────────────┐
+│ Warp Console │               │  API Server  │
+└──────┬───────┘               └──────┬───────┘
+       │                              │
+       │ 1. GET /verify-subscription  │
+       │─────────────────────────────>│
+       │                              │
+       │ 2. {premium: false}          │
+       │<─────────────────────────────│
+       │                              │
+       │ 3. if (premium) { ✗ }        │  ← PROBLEM!
+       │    enableFeatures()          │
+       │                              │
+       │ 4. Use premium features      │
+       │    (No server check!)        │  ← PROBLEM!
+       │                              │
+```
+
+**Problem Identifierade:**
+
+1. **Client-Side Trust**: Klienten bestämmer åtkomst
+2. **No Continuous Verification**: Ingen runtime server-check
+3. **No Anti-Tampering**: Ingen skydd mot Frida
+4. **No Feature Gating**: Server validerar inte feature-requests
+
+### Fas 3: Remediation Strategy
+
+**Multi-Layer Defense Approach:**
+
+```
+┌────────────────────────────────────────────────┐
+│         DEFENSE IN DEPTH STRATEGY              │
+└────────────────────────────────────────────────┘
+
+Layer 1: Server-Side Feature Gating
+Layer 2: Continuous Token Verification
+Layer 3: Anti-Tampering Protection
+Layer 4: Runtime Integrity Monitoring
+Layer 5: Rate Limiting & Anomaly Detection
+```
+
+### Fas 4: Implementation - Lösningar
+
+#### Lösning 1: Server-Side Feature Gating
+
+**INNAN (Sårbar):**
+
+```javascript
+// client/features.js
+function enableAIAssistant() {
+    if (isPremiumUser) {  // ← Client-side check
+        initAIFeatures();
+    }
+}
+
+function processAIRequest(prompt) {
+    // Direkt processing utan server-check
+    return generateResponse(prompt);
+}
+```
+
+**EFTER (Säker):**
+
+```javascript
+// client/features.js
+async function processAIRequest(prompt) {
+    // Skicka till server för validering OCH processing
+    const response = await fetch('https://api.warp.dev/v1/ai/process', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${getAuthToken()}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ prompt })
+    });
+
+    if (response.status === 403) {
+        throw new Error('Premium feature - upgrade required');
+    }
+
+    return await response.json();
+}
+```
+
+```python
+# server/api/ai.py
+from flask import request, jsonify
+from auth import verify_premium_token
+
+@app.route('/v1/ai/process', methods=['POST'])
+def process_ai_request():
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+
+    # SERVER-SIDE premium verification
+    user = verify_premium_token(token)
+
+    if not user or not user.is_premium:
+        return jsonify({'error': 'Premium subscription required'}), 403
+
+    # Check not expired
+    if user.premium_expires < datetime.now():
+        return jsonify({'error': 'Subscription expired'}), 403
+
+    # Log usage for rate limiting
+    log_feature_usage(user.id, 'ai_request')
+
+    # Process request
+    prompt = request.json.get('prompt')
+    result = ai_service.generate(prompt, user_id=user.id)
+
+    return jsonify({'result': result})
+```
+
+#### Lösning 2: Continuous Token Verification
+
+**token_manager.js:**
+
+```javascript
+class SecureTokenManager {
+    constructor() {
+        this.token = null;
+        this.premiumStatus = null;
+        this.lastVerified = null;
+        this.VERIFICATION_INTERVAL = 5 * 60 * 1000; // 5 minuter
+    }
+
+    async initialize() {
+        await this.verifyToken();
+
+        // Kontinuerlig verifiering i bakgrunden
+        setInterval(() => this.verifyToken(), this.VERIFICATION_INTERVAL);
+    }
+
+    async verifyToken() {
+        try {
+            const response = await fetch('https://api.warp.dev/v1/verify-subscription', {
+                headers: {
+                    'Authorization': `Bearer ${this.token}`,
+                    // Anti-replay: Nonce
+                    'X-Nonce': this.generateNonce(),
+                    // Integrity check
+                    'X-Integrity': this.calculateIntegrity()
+                }
+            });
+
+            const data = await response.json();
+
+            // Verifiera signatur från server
+            if (!this.verifyServerSignature(data)) {
+                throw new Error('Invalid server signature');
+            }
+
+            this.premiumStatus = data.premium;
+            this.lastVerified = Date.now();
+
+            // Emit event för feature managers
+            this.emit('premium-status-updated', this.premiumStatus);
+
+        } catch (error) {
+            console.error('Token verification failed:', error);
+            // Fail secure: Disable premium features
+            this.premiumStatus = false;
+            this.emit('premium-status-updated', false);
+        }
+    }
+
+    isPremium() {
+        // Kontrollera att verifiering är färsk
+        const timeSinceVerification = Date.now() - this.lastVerified;
+
+        if (timeSinceVerification > this.VERIFICATION_INTERVAL * 2) {
+            // För gammal verifiering - fail secure
+            return false;
+        }
+
+        return this.premiumStatus === true;
+    }
+
+    generateNonce() {
+        return crypto.randomBytes(16).toString('hex');
+    }
+
+    calculateIntegrity() {
+        // Hash av kritiska komponenter för att detektera tampering
+        const components = [
+            this.getAppVersion(),
+            this.getBinaryHash(),
+            this.getConfigHash()
+        ].join('|');
+
+        return crypto.createHash('sha256').update(components).digest('hex');
+    }
+
+    verifyServerSignature(data) {
+        // Verifiera JWT signatur eller HMAC
+        const signature = data.signature;
+        const payload = JSON.stringify({
+            premium: data.premium,
+            expires_at: data.expires_at
+        });
+
+        const expectedSignature = crypto
+            .createHmac('sha256', SERVER_PUBLIC_KEY)
+            .update(payload)
+            .digest('hex');
+
+        return signature === expectedSignature;
+    }
+}
+```
+
+#### Lösning 3: Anti-Tampering Protection
+
+**integrity_monitor.cpp:**
+
+```cpp
+#include <frida-gum.h>
+#include <openssl/sha.h>
+
+class IntegrityMonitor {
+private:
+    bool frida_detected = false;
+    bool debugger_detected = false;
+    std::string original_binary_hash;
+
+public:
+    IntegrityMonitor() {
+        // Beräkna hash av egen binary vid start
+        original_binary_hash = calculateSelfHash();
+    }
+
+    // Detektera Frida
+    bool detectFrida() {
+        // Metod 1: Kolla efter Frida libraries
+        void* handle = dlopen("libfrida-agent.so", RTLD_NOW);
+        if (handle != nullptr) {
+            dlclose(handle);
+            return true;
+        }
+
+        // Metod 2: Kolla efter Frida threads
+        DIR* dir = opendir("/proc/self/task");
+        if (dir) {
+            struct dirent* entry;
+            while ((entry = readdir(dir)) != nullptr) {
+                if (entry->d_type == DT_DIR) {
+                    std::string comm_path = "/proc/self/task/" +
+                                           std::string(entry->d_name) + "/comm";
+                    std::ifstream comm_file(comm_path);
+                    std::string comm;
+                    std::getline(comm_file, comm);
+
+                    if (comm.find("frida") != std::string::npos ||
+                        comm.find("gmain") != std::string::npos) {
+                        closedir(dir);
+                        return true;
+                    }
+                }
+            }
+            closedir(dir);
+        }
+
+        // Metod 3: Kolla efter named pipes som Frida använder
+        for (const auto& pipe : {"/frida-agent", "/linjector"}) {
+            if (access(pipe, F_OK) == 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Detektera debugger
+    bool detectDebugger() {
+        // Metod 1: ptrace anti-debug
+        if (ptrace(PTRACE_TRACEME, 0, 1, 0) < 0) {
+            return true;  // Redan debuggad
+        }
+        ptrace(PTRACE_DETACH, 0, 1, 0);
+
+        // Metod 2: Kolla /proc/self/status
+        std::ifstream status("/proc/self/status");
+        std::string line;
+        while (std::getline(status, line)) {
+            if (line.find("TracerPid:") == 0) {
+                int tracer_pid = std::stoi(line.substr(11));
+                if (tracer_pid != 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    // Verifiera binary integrity
+    bool verifyBinaryIntegrity() {
+        std::string current_hash = calculateSelfHash();
+        return current_hash == original_binary_hash;
+    }
+
+    std::string calculateSelfHash() {
+        std::ifstream binary("/proc/self/exe", std::ios::binary);
+        SHA256_CTX sha256;
+        SHA256_Init(&sha256);
+
+        char buffer[4096];
+        while (binary.read(buffer, sizeof(buffer))) {
+            SHA256_Update(&sha256, buffer, binary.gcount());
+        }
+
+        unsigned char hash[SHA256_DIGEST_LENGTH];
+        SHA256_Final(hash, &sha256);
+
+        std::stringstream ss;
+        for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+            ss << std::hex << std::setw(2) << std::setfill('0')
+               << static_cast<int>(hash[i]);
+        }
+
+        return ss.str();
+    }
+
+    // Main monitoring loop
+    void startMonitoring() {
+        std::thread monitor_thread([this]() {
+            while (true) {
+                if (detectFrida()) {
+                    handleTamperingDetected("Frida detected");
+                }
+
+                if (detectDebugger()) {
+                    handleTamperingDetected("Debugger detected");
+                }
+
+                if (!verifyBinaryIntegrity()) {
+                    handleTamperingDetected("Binary integrity violation");
+                }
+
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+            }
+        });
+
+        monitor_thread.detach();
+    }
+
+    void handleTamperingDetected(const std::string& reason) {
+        // Logga till server
+        logSecurityEvent(reason);
+
+        // Disable premium features
+        disableAllPremiumFeatures();
+
+        // Optional: Exit application
+        std::cerr << "Security violation detected: " << reason << std::endl;
+        std::cerr << "Application will now exit." << std::endl;
+        exit(1);
+    }
+
+    void logSecurityEvent(const std::string& reason) {
+        // Skicka till server för analys
+        httpPost("https://api.warp.dev/v1/security/events", {
+            {"event_type", "tampering_detected"},
+            {"reason", reason},
+            {"timestamp", getCurrentTimestamp()},
+            {"user_id", getUserId()},
+            {"device_id", getDeviceId()}
+        });
+    }
+};
+```
+
+#### Lösning 4: Runtime Integrity Monitoring
+
+**server/monitoring.py:**
+
+```python
+from flask import Flask, request
+from datetime import datetime, timedelta
+import redis
+from collections import defaultdict
+
+app = Flask(__name__)
+redis_client = redis.Redis(host='localhost', port=6379, db=0)
+
+class AnomalyDetector:
+    """Detektera onormalt beteende som kan indikera bypass"""
+
+    def __init__(self):
+        self.redis = redis_client
+
+    def check_rate_limit(self, user_id, feature):
+        """Rate limiting per feature"""
+        key = f"rate_limit:{user_id}:{feature}"
+
+        # Premium users: 100 AI requests/hour
+        # Free users: 0 AI requests
+        current_count = self.redis.incr(key)
+
+        if current_count == 1:
+            # Första requesten - sätt TTL
+            self.redis.expire(key, 3600)  # 1 timme
+
+        user = get_user(user_id)
+
+        if not user.is_premium and feature == 'ai_request':
+            # Free user försöker använda premium feature
+            self.log_security_event(user_id, 'unauthorized_feature_access', {
+                'feature': feature,
+                'premium_status': False
+            })
+            return False
+
+        if user.is_premium and current_count > 100:
+            # För många requests - möjlig automation
+            self.log_security_event(user_id, 'rate_limit_exceeded', {
+                'feature': feature,
+                'count': current_count,
+                'limit': 100
+            })
+            return False
+
+        return True
+
+    def detect_impossible_travel(self, user_id, ip_address):
+        """Detektera om samma user loggar in från två platser samtidigt"""
+        key = f"user_location:{user_id}"
+
+        last_location = self.redis.get(key)
+
+        if last_location:
+            last_ip, last_time = last_location.decode().split('|')
+            last_time = datetime.fromisoformat(last_time)
+
+            # Kolla geografisk distans
+            distance = calculate_distance(last_ip, ip_address)
+            time_diff = (datetime.now() - last_time).total_seconds()
+
+            # Mänskligt omöjlig resa? (>1000 km på <1 timme)
+            if distance > 1000 and time_diff < 3600:
+                self.log_security_event(user_id, 'impossible_travel', {
+                    'last_ip': last_ip,
+                    'current_ip': ip_address,
+                    'distance_km': distance,
+                    'time_seconds': time_diff
+                })
+                return False
+
+        # Uppdatera location
+        self.redis.setex(
+            key,
+            3600,  # 1 timme
+            f"{ip_address}|{datetime.now().isoformat()}"
+        )
+
+        return True
+
+    def detect_version_anomaly(self, user_id, client_version, integrity_hash):
+        """Detektera modifierad client"""
+        expected_hashes = {
+            '1.2.0': 'a3f5d8c9e2b1...',
+            '1.2.1': 'b4e6f9d0c3a2...',
+        }
+
+        expected_hash = expected_hashes.get(client_version)
+
+        if not expected_hash:
+            self.log_security_event(user_id, 'unknown_version', {
+                'version': client_version
+            })
+            return False
+
+        if integrity_hash != expected_hash:
+            self.log_security_event(user_id, 'integrity_violation', {
+                'version': client_version,
+                'expected_hash': expected_hash,
+                'actual_hash': integrity_hash
+            })
+            return False
+
+        return True
+
+    def log_security_event(self, user_id, event_type, metadata):
+        """Logga security event för analys"""
+        event = {
+            'user_id': user_id,
+            'event_type': event_type,
+            'metadata': metadata,
+            'timestamp': datetime.now().isoformat(),
+            'ip': request.remote_addr
+        }
+
+        # Spara till database
+        db.security_events.insert_one(event)
+
+        # Real-time alert för kritiska events
+        if event_type in ['unauthorized_feature_access', 'integrity_violation']:
+            send_alert_to_security_team(event)
+
+        # Auto-ban efter för många violations
+        violation_count = db.security_events.count_documents({
+            'user_id': user_id,
+            'timestamp': {'$gte': datetime.now() - timedelta(hours=1)}
+        })
+
+        if violation_count > 5:
+            ban_user(user_id, reason=f"Multiple security violations: {event_type}")
+
+# Integration i API
+@app.route('/v1/ai/process', methods=['POST'])
+def process_ai_request():
+    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    user = verify_token(token)
+
+    if not user:
+        return jsonify({'error': 'Invalid token'}), 401
+
+    # Anomaly detection
+    detector = AnomalyDetector()
+
+    # Check 1: Rate limiting
+    if not detector.check_rate_limit(user.id, 'ai_request'):
+        return jsonify({'error': 'Rate limit exceeded'}), 429
+
+    # Check 2: Impossible travel
+    if not detector.detect_impossible_travel(user.id, request.remote_addr):
+        return jsonify({'error': 'Suspicious activity detected'}), 403
+
+    # Check 3: Client integrity
+    client_version = request.headers.get('X-Client-Version')
+    integrity_hash = request.headers.get('X-Integrity')
+
+    if not detector.detect_version_anomaly(user.id, client_version, integrity_hash):
+        return jsonify({'error': 'Client integrity check failed'}), 403
+
+    # Alla checks passerade - process request
+    # ...
+```
+
+#### Lösning 5: Code Obfuscation (Defense in Depth)
+
+**build_config.js:**
+
+```javascript
+// webpack.config.js med obfuscation
+const JavaScriptObfuscator = require('webpack-obfuscator');
+
+module.exports = {
+    // ... standard config
+
+    plugins: [
+        new JavaScriptObfuscator({
+            // Gör reverse engineering svårare
+            rotateStringArray: true,
+            stringArray: true,
+            stringArrayThreshold: 0.75,
+
+            // Anti-debug
+            debugProtection: true,
+            debugProtectionInterval: 4000,
+
+            // Anti-tampering
+            selfDefending: true,
+
+            // Deadcode injection
+            deadCodeInjection: true,
+            deadCodeInjectionThreshold: 0.4,
+
+            // Control flow flattening
+            controlFlowFlattening: true,
+            controlFlowFlatteningThreshold: 0.75
+        }, [])
+    ]
+};
+```
+
+### Fas 5: Testing & Validation
+
+**Säkerhetstest:**
+
+```bash
+# Test 1: Försök använda gamla exploiten
+frida -l warp_bypass_v1.js warp-console
+
+# Förväntat resultat:
+# [!] Tampering detected: Frida detected
+# Application will now exit.
+# ✅ PASS
+
+# Test 2: Försök patcha binary
+python warp_persistent_patch.py /usr/bin/warp-console
+
+# Förväntat resultat:
+# [+] Patched binary created
+# [Run patched binary]
+# [!] Binary integrity violation
+# Application will now exit.
+# ✅ PASS
+
+# Test 3: Försök API response manipulation
+mitmproxy --modify-body '{"premium":false}' '{"premium":true}'
+
+# Förväntat resultat:
+# Server returnerar signerad response
+# Client verifierar signatur
+# Invalid signature → Fail secure
+# ✅ PASS
+
+# Test 4: Premium user - normal usage
+# Förväntat resultat:
+# ✅ AI features work
+# ✅ Rate limiting fungerar
+# ✅ PASS
+```
+
+### Fas 6: Deployment & Monitoring
+
+**Deployment Plan:**
+
+```yaml
+# deployment.yml
+version: 2.0.0
+release_date: 2025-01-20
+
+phases:
+  # Fas 1: Canary deployment (5% users)
+  - name: canary
+    duration: 24h
+    percentage: 5%
+    rollback_on:
+      - error_rate > 1%
+      - crash_rate > 0.1%
+
+  # Fas 2: Gradual rollout
+  - name: rollout
+    duration: 72h
+    percentage: 100%
+    stages:
+      - 25%: 24h
+      - 50%: 24h
+      - 100%: 24h
+
+monitoring:
+  metrics:
+    - security_events_count
+    - tampering_detection_rate
+    - false_positive_rate
+    - premium_feature_usage
+    - api_response_time
+
+  alerts:
+    - condition: security_events_count > 100/hour
+      severity: high
+      notify: security-team
+
+    - condition: tampering_detection_rate > 10%
+      severity: medium
+      notify: dev-team
+
+rollback_plan:
+  triggers:
+    - manual
+    - automated (if critical metrics breached)
+
+  steps:
+    1. Stop deployment
+    2. Revert to previous version
+    3. Notify stakeholders
+    4. Post-mortem analysis
+```
+
+---
+
+## 📊 DEL 3: Analys & Lärdomar
+
+### Red Team Insikter
+
+**Vad fungerade:**
+
+✅ **Reconnaissance**: Kombination av statisk (Ghidra) och dynamisk (Frida) analys
+✅ **Methodology**: Systematisk approach från spaning → exploit → dokumentation
+✅ **Tools**: Frida väldigt kraftfullt för runtime manipulation
+✅ **Communication**: Tydlig dokumentation hjälpte Blue Team
+
+**Challenges:**
+
+⚠️ **False sense of security**: Client-side checks är alltid sårbar
+⚠️ **Complexity**: Vissa exploits krävde djup förståelse av binary
+⚠️ **Detection**: Bra anti-tampering kan göra exploits svårare
+
+### Blue Team Insikter
+
+**Vad fungerade:**
+
+✅ **Defense in Depth**: Flera lager av skydd
+✅ **Server-Side Enforcement**: Flyttade kritiska decisions till server
+✅ **Monitoring**: Real-time detection av anomalier
+✅ **Quick Response**: Snabb deployment av fix
+
+**Challenges:**
+
+⚠️ **False Positives**: Anti-tampering kan trigga på legitima debuggers
+⚠️ **Performance**: Continuous verification har overhead
+⚠️ **User Experience**: Balance mellan säkerhet och UX
+
+### Viktiga Säkerhetsprinciper
+
+#### 1. Never Trust the Client
+
+```
+❌ BAD:  if (clientSays.isPremium) { grantAccess(); }
+✅ GOOD: if (serverVerifies.isPremium) { grantAccess(); }
+```
+
+#### 2. Defense in Depth
+
+```
+Lager 1: Client-side checks (UX, ej säkerhet)
+Lager 2: Server-side enforcement (primär säkerhet)
+Lager 3: Anti-tampering (fördröj attacker)
+Lager 4: Monitoring (detektera attacker)
+Lager 5: Rate limiting (begränsa skada)
+```
+
+#### 3. Fail Secure
+
+```javascript
+// När något går fel - fail till säkert state
+function isPremium() {
+    try {
+        return verifyPremiumStatus();
+    } catch (error) {
+        console.error('Premium verification failed');
+        return false;  // ← Fail secure
+    }
+}
+```
+
+#### 4. Continuous Verification
+
+```
+Inte bara vid login - verify kontinuerligt:
+- Vid varje premium feature request
+- Regelbundet i bakgrunden (var 5:e minut)
+- Vid misstänkt beteende
+```
+
+#### 5. Monitor & Respond
+
+```
+Detection → Alert → Response → Learn
+    ↑                              ↓
+    └──────────── Improve ─────────┘
+```
+
+### Metrics & Success Criteria
+
+**Red Team Success:**
+
+| Metric                    | Mål    | Resultat |
+|---------------------------|--------|----------|
+| Time to exploit           | <8h    | 4h ✅    |
+| Exploit reliability       | >90%   | 100% ✅  |
+| Documentation quality     | High   | High ✅  |
+| Responsible disclosure    | Yes    | Yes ✅   |
+
+**Blue Team Success:**
+
+| Metric                    | Mål    | Resultat |
+|---------------------------|--------|----------|
+| Time to patch             | <7d    | 5d ✅    |
+| Exploit mitigation        | 100%   | 100% ✅  |
+| False positive rate       | <1%    | 0.3% ✅  |
+| Performance impact        | <5%    | 2% ✅    |
+| Zero-day window           | <48h   | 36h ✅   |
+
+---
+
+## 🎓 Övning för Läsaren
+
+### Del A: Red Team Challenge
+
+**Din uppgift**: Företaget har uppdaterat till v2.0 med följande nya "säkerhet":
+
+```javascript
+// warp-console v2.0
+function checkPremium() {
+    const response = api.verify();
+    const decrypted = decrypt(response.encryptedStatus, SECRET_KEY);
+    return decrypted.premium === true;
+}
+```
+
+**Frågor:**
+1. Vilka potentiella sårbarheter finns fortfarande?
+2. Hur skulle du exploitera detta med Frida?
+3. Varför är detta fortfarande osäkert?
+
+<details>
+<summary>Facit</summary>
+
+**Svar:**
+
+1. **Sårbarheter:**
+   - Klienten har fortfarande `SECRET_KEY` (kan extraheras med Frida)
+   - Decryption sker client-side (kan bypasses)
+   - Ingen continuous verification
+   - `premium === true` check kan hookbas
+
+2. **Exploit:**
+```javascript
+// Hook decrypt function
+var decryptPtr = Module.findExportByName("warp-console", "_Z7decryptPKcS0_");
+Interceptor.attach(decryptPtr, {
+    onLeave: function(retval) {
+        // Modifiera decrypterat result
+        var result = JSON.parse(Memory.readUtf8String(retval));
+        result.premium = true;
+        Memory.writeUtf8String(retval, JSON.stringify(result));
+    }
+});
+```
+
+3. **Varför osäkert:**
+   - Anything client-side kan manipuleras
+   - Kryptografiska nycklar på klient = ej säkert
+   - Lösning: Server måste fatta decision OCH utföra action
+
+</details>
+
+### Del B: Blue Team Challenge
+
+**Din uppgift**: Designa säkerhet för ny feature: "Team Collaboration"
+
+**Krav:**
+- Multiple users kan dela terminal sessions
+- Endast premium teams
+- Real-time collaboration
+
+**Frågor:**
+1. Var ska premium-verification ske?
+2. Hur förhindrar du att free users "joins" en premium session?
+3. Vilken monitoring behövs?
+
+<details>
+<summary>Facit</summary>
+
+**Säker Design:**
+
+```python
+# server/collaboration.py
+@app.route('/v1/session/create', methods=['POST'])
+def create_session():
+    user = verify_token(request.headers['Authorization'])
+
+    # 1. Server-side verification
+    if not user.is_premium or not user.team.is_premium:
+        return jsonify({'error': 'Premium team required'}), 403
+
+    # 2. Create session på SERVER
+    session = CollaborationSession.create(
+        owner_id=user.id,
+        team_id=user.team.id
+    )
+
+    return jsonify({'session_id': session.id})
+
+@app.route('/v1/session/<session_id>/join', methods=['POST'])
+def join_session(session_id):
+    user = verify_token(request.headers['Authorization'])
+    session = CollaborationSession.get(session_id)
+
+    # 1. Verify user is premium
+    if not user.is_premium:
+        return jsonify({'error': 'Premium required'}), 403
+
+    # 2. Verify user is in same team
+    if user.team.id != session.team_id:
+        return jsonify({'error': 'Not in session team'}), 403
+
+    # 3. Verify session still valid
+    if not session.team.is_premium:
+        return jsonify({'error': 'Team subscription expired'}), 403
+
+    # 4. Add user to session (server-side)
+    session.add_participant(user.id)
+
+    # 5. Monitor
+    log_event('collaboration_join', {
+        'user_id': user.id,
+        'session_id': session_id
+    })
+
+    return jsonify({'websocket_url': f'wss://collab.warp.dev/{session_id}'})
+
+# WebSocket handler
+@socketio.on('terminal_input')
+def handle_input(data):
+    session_id = request.args.get('session')
+    user = get_current_user()
+
+    # VERIFY VARJE INPUT
+    if not verify_session_access(user.id, session_id):
+        disconnect()
+        return
+
+    # Broadcast till andra premium users
+    emit('terminal_output', data, room=session_id)
+```
+
+**Monitoring:**
+- Track session creation rate per team
+- Alert on abnormal join patterns
+- Monitor for session hijacking attempts
+- Log all collaboration events
+
+</details>
+
+---
+
+## 🏆 Bug Bounty Resultat
+
+### Utbetalningar
+
+| Team      | Sårbarhet                    | Severity | Bounty  |
+|-----------|------------------------------|----------|---------|
+| Red Team  | Client-side premium bypass   | High     | $5,000  |
+| Red Team  | API response manipulation    | Medium   | $2,500  |
+| Red Team  | Persistent binary patch      | Medium   | $2,000  |
+| Blue Team | Defense implementation       | -        | $3,000  |
+| Blue Team | Monitoring system            | -        | $1,500  |
+
+**Total utbetalt:** $14,000
+
+### Lessons Learned
+
+**För Organisationen:**
+
+✅ Internal bug bounties fungerar för att hitta sårbarheter
+✅ Red Team + Blue Team samarbete förbättrar säkerhet
+✅ Investering i säkerhet sparar pengar långsiktigt
+✅ Documentation är kritisk för både teams
+
+**För Utvecklare:**
+
+✅ Never trust client-side för säkerhetsbeslut
+✅ Server-side enforcement är enda sättet
+✅ Defense in depth - flera lager
+✅ Monitor och respond kontinuerligt
+
+**För Security Team:**
+
+✅ Frida är kraftfullt verktyg för både attack och defense
+✅ Kombinera Ghidra + Frida för bästa resultat
+✅ Automated testing är kritiskt
+✅ Real-world scenarios tränar teams bättre
+
+---
+
+## 🎯 Sammanfattning
+
+**Red Team Workflow:**
+```
+Recon → Analyze → Exploit → Document → Report
+  ↓        ↓         ↓          ↓         ↓
+Ghidra   Frida    PoC Code   Write-up  Bounty
+```
+
+**Blue Team Workflow:**
+```
+Receive → Verify → Analyze → Fix → Test → Deploy → Monitor
+   ↓        ↓         ↓       ↓      ↓       ↓        ↓
+Report   Repro    Root     Patch  QA    Rollout  Alerts
+               Cause
+```
+
+**Viktigaste Lärdomar:**
+
+1. **Client är ej pålitlig** - All enforcement ska ske server-side
+2. **Defense in Depth** - Ett lager räcker ej
+3. **Continuous Verification** - Inte bara vid login
+4. **Monitor Everything** - Detektera anomalier
+5. **Fail Secure** - När något går fel, fail till säker state
+
+**Etik:**
+- ✅ Endast på auktoriserade system
+- ✅ Dokumentera och rapportera
+- ✅ Hjälp till att fixa
+- ❌ Exploatera ej i produktion
+- ❌ Dela ej exploits publikt
+
+---
+
+**Lycka till med era egna bug bounties! 🔐**
+
+*Red Team vs Blue Team Exercise - Internal Training*
+*Skapad: 2025*
+*Disclaimer: Endast för educational purposes i kontrollerade miljöer*
+
