@@ -1,0 +1,16 @@
+# Core dependencies
+requests>=2.31.0
+python-dateutil>=2.8.2
+
+# För Selenium-baserad export (valfritt)
+selenium>=4.15.0
+webdriver-manager>=4.0.1
+
+# För bättre HTTP-hantering
+urllib3>=2.1.0
+
+# För cookie-hantering
+browser-cookie3>=0.19.1
+
+# För datahantering
+python-dotenv>=1.0.0
