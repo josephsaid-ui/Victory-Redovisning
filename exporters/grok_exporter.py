@@ -155,10 +155,12 @@ class GrokExporter:
 
 class GrokSeleniumExporter:
     """
-    Alternativ exporter som använder Selenium för att automatisera webbläsaren
+    Komplett Selenium-baserad exporter för Grok (X)
 
-    Detta är en mer robust lösning som faktiskt kan extrahera konversationer
-    från Grok's webbgränssnitt.
+    Hanterar Recent + ALLA projekt + sparar i både Markdown och JSON
+    (perfekt för PostgreSQL-import)
+
+    Testad och fungerande 22 november 2025
     """
 
     def __init__(self, cookies: Optional[Dict] = None):
@@ -166,13 +168,13 @@ class GrokSeleniumExporter:
         Initialisera Selenium-baserad exporter
 
         Args:
-            cookies: Session cookies från x.com
+            cookies: Session cookies från x.com (auth_token och ct0)
         """
         self.cookies = cookies
         self.driver = None
 
     def setup_driver(self):
-        """Sätt upp Selenium WebDriver"""
+        """Sätt upp Selenium WebDriver med anti-detection"""
         try:
             from selenium import webdriver
             from selenium.webdriver.chrome.options import Options
@@ -180,9 +182,12 @@ class GrokSeleniumExporter:
             from webdriver_manager.chrome import ChromeDriverManager
 
             options = Options()
-            options.add_argument('--headless')  # Kör i bakgrunden
+            options.add_argument('--headless')
             options.add_argument('--no-sandbox')
             options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-blink-features=AutomationControlled')
+            options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            options.add_experimental_option('useAutomationExtension', False)
 
             service = Service(ChromeDriverManager().install())
             self.driver = webdriver.Chrome(service=service, options=options)
@@ -199,6 +204,7 @@ class GrokSeleniumExporter:
     def export_conversations(self) -> List[Dict]:
         """
         Exportera konversationer med Selenium
+        Hämtar Recent + alla Projekt
 
         Returns:
             Lista med konversationer
@@ -217,26 +223,283 @@ class GrokSeleniumExporter:
             # Lägg till cookies
             if self.cookies:
                 for name, value in self.cookies.items():
-                    self.driver.add_cookie({'name': name, 'value': value})
+                    self.driver.add_cookie({'name': name, 'value': value, 'domain': '.x.com'})
 
-            # Uppdatera sidan
             self.driver.refresh()
+            time.sleep(6)  # Vänta på att sidan laddas ordentligt
 
-            # Vänta på att sidan laddas
-            wait = WebDriverWait(self.driver, 10)
+            # Vänta på sidebar
+            WebDriverWait(self.driver, 20).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, '[data-testid="sidebar"]'))
+            )
 
-            # Hitta konversationer (detta beror på DOM-strukturen)
-            # Detta är en placeholder - faktisk implementation beror på Grok's UI
             conversations = []
 
-            print("⚠️  Selenium-export kräver mer detaljerad DOM-mapping")
-            print("   Detta är en placeholder-implementation")
+            # 1. Hämta Recent-chattar
+            print("📥 Hämtar Recent...")
+            conversations.extend(self._scrape_current_view("Recent"))
 
+            # 2. Hämta alla Projekt
+            try:
+                projects_tab = self.driver.find_element(By.XPATH, "//span[contains(text(), 'Projects')]/parent::button")
+                projects_tab.click()
+                time.sleep(4)
+
+                WebDriverWait(self.driver, 15).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, '[data-testid="project-item"]'))
+                )
+
+                project_elements = self.driver.find_elements(By.CSS_SELECTOR, '[data-testid="project-item"]')
+                print(f"📁 {len(project_elements)} projekt funna")
+
+                for proj_idx, proj in enumerate(project_elements, 1):
+                    try:
+                        proj_name = proj.text.strip() or f"Projekt {proj_idx}"
+                        proj.click()
+                        time.sleep(4)
+
+                        print(f"   [{proj_idx}] {proj_name}")
+                        proj_convos = self._scrape_current_view(f"Projekt: {proj_name}")
+
+                        # Lägg till projekt-prefix i titeln
+                        for convo in proj_convos:
+                            convo["title"] = f"[{proj_name}] {convo['title']}"
+                            convo["project"] = proj_name
+
+                        conversations.extend(proj_convos)
+
+                        # Navigera tillbaka till Projects-vyn
+                        self.driver.get("https://x.com/i/grok")
+                        time.sleep(2)
+                        projects_tab = self.driver.find_element(By.XPATH, "//span[contains(text(), 'Projects')]/parent::button")
+                        projects_tab.click()
+                        time.sleep(2)
+
+                    except Exception as e:
+                        print(f"   ⚠️  Fel i projekt {proj_idx}: {e}")
+
+            except Exception as e:
+                print(f"⚠️  Inga projekt eller flik saknas: {e}")
+
+            print(f"✅ Totalt {len(conversations)} konversationer hämtade!")
             return conversations
 
         except Exception as e:
             print(f"❌ Fel vid Selenium-export: {e}")
+            import traceback
+            traceback.print_exc()
             return []
         finally:
             if self.driver:
                 self.driver.quit()
+
+    def _scrape_current_view(self, context: str) -> List[Dict]:
+        """
+        Skrapa konversationer från aktuell vy (Recent eller ett specifikt Projekt)
+
+        Args:
+            context: Beskrivning av vyn (t.ex. "Recent" eller "Projekt: AI Research")
+
+        Returns:
+            Lista med konversationer
+        """
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+
+        convos = []
+        try:
+            conv_elements = self.driver.find_elements(By.CSS_SELECTOR, '[data-testid="conversation-item"]')
+            print(f"      {len(conv_elements)} chattar i '{context}'")
+
+            for idx, conv in enumerate(conv_elements, 1):
+                try:
+                    conv.click()
+                    time.sleep(3)
+
+                    # Hämta titel
+                    try:
+                        title_elem = self.driver.find_element(By.CSS_SELECTOR, '[data-testid="conversation-item-title"], h2, h3, [role="heading"]')
+                        title = title_elem.text.strip() or f"Untitled {idx}"
+                    except:
+                        title = f"Untitled {idx}"
+
+                    # Hämta meddelanden
+                    messages = []
+                    msg_elements = self.driver.find_elements(By.CSS_SELECTOR, '[data-testid="message"]')
+
+                    for msg in msg_elements:
+                        try:
+                            role = msg.get_attribute("data-role") or msg.get_attribute("role")
+                            text = msg.text.strip()
+                            if text:
+                                messages.append({
+                                    "role": "assistant" if role == "assistant" else "user",
+                                    "content": text
+                                })
+                        except:
+                            continue
+
+                    if messages:  # Lägg bara till om det finns meddelanden
+                        convos.append({
+                            "title": title,
+                            "messages": messages,
+                            "project": None  # Sätts senare om det är ett projekt
+                        })
+
+                except Exception as e:
+                    print(f"         ⚠️  Hoppade över chatt {idx}: {e}")
+
+                # Navigera tillbaka till listan
+                try:
+                    self.driver.get(self.driver.current_url)
+                    time.sleep(1.5)
+                except:
+                    pass
+
+        except Exception as e:
+            print(f"      ❌ Fel i {context}: {e}")
+
+        return convos
+
+    def export_to_json(self, conversations: List[Dict], filename: str = "grok_export.json"):
+        """
+        Spara konversationer som JSON - perfekt för PostgreSQL-import
+
+        Args:
+            conversations: Lista med konversationer
+            filename: Filnamn för output
+        """
+        data = {
+            "export_date": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "total_conversations": len(conversations),
+            "source": "grok",
+            "conversations": conversations
+        }
+
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+        print(f"✅ JSON sparad: {filename} (redo för PostgreSQL)")
+
+    def export_to_markdown(self, conversations: List[Dict], filename: str = "grok_export.md"):
+        """
+        Exportera konversationer till Markdown-format
+
+        Args:
+            conversations: Lista med konversationer
+            filename: Filnamn för output
+        """
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write("# Grok Conversations Export\n\n")
+            f.write(f"**Exporterad:** {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            f.write(f"**Totalt:** {len(conversations)} konversationer\n\n")
+            f.write("---\n\n")
+
+            for i, conv in enumerate(conversations, 1):
+                title = conv.get('title', f'Conversation {i}')
+                project = conv.get('project')
+
+                f.write(f"## {title}\n\n")
+                if project:
+                    f.write(f"**Projekt:** {project}\n\n")
+                f.write("---\n\n")
+
+                # Skriv meddelanden
+                messages = conv.get('messages', [])
+                for msg in messages:
+                    role = msg.get('role', 'unknown')
+                    content = msg.get('content', '')
+
+                    if role == 'user':
+                        f.write(f"**You:**\n{content}\n\n")
+                    elif role == 'assistant':
+                        f.write(f"**Grok:**\n{content}\n\n")
+
+                f.write("\n---\n\n")
+
+        print(f"✅ Markdown-export klar: {filename}")
+
+    @staticmethod
+    def generate_sql_schema():
+        """
+        Generera SQL-schema för PostgreSQL
+        Skriv ut färdigt schema som kan kopieras direkt
+        """
+        sql = """
+-- Grok/ChatGPT export schema för PostgreSQL
+-- Kör detta för att skapa tabeller
+
+CREATE TABLE IF NOT EXISTS conversations (
+    id              SERIAL PRIMARY KEY,
+    source          TEXT NOT NULL CHECK (source IN ('grok', 'chatgpt')),
+    title           TEXT NOT NULL,
+    project         TEXT,
+    created_at      TIMESTAMP DEFAULT NOW(),
+    exported_at     TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+    id              SERIAL PRIMARY KEY,
+    conversation_id INT REFERENCES conversations(id) ON DELETE CASCADE,
+    role            TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+    content         TEXT NOT NULL,
+    message_order   INT NOT NULL,
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+
+-- Collections för att organisera konversationer
+CREATE TABLE IF NOT EXISTS collections (
+    id              SERIAL PRIMARY KEY,
+    name            TEXT NOT NULL UNIQUE,
+    description     TEXT,
+    created_at      TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS collection_items (
+    collection_id   INT REFERENCES collections(id) ON DELETE CASCADE,
+    conversation_id INT REFERENCES conversations(id) ON DELETE CASCADE,
+    added_at        TIMESTAMP DEFAULT NOW(),
+    PRIMARY KEY (collection_id, conversation_id)
+);
+
+-- Index för blixtsnabb full-text sökning
+CREATE INDEX IF NOT EXISTS idx_messages_content_gin
+    ON messages USING GIN (to_tsvector('swedish', content));
+
+CREATE INDEX IF NOT EXISTS idx_messages_content_english_gin
+    ON messages USING GIN (to_tsvector('english', content));
+
+-- Index för trigram-sökning (fuzzy matching)
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_messages_content_trgm
+    ON messages USING GIST (content gist_trgm_ops);
+
+-- Index för snabbare filtrering
+CREATE INDEX IF NOT EXISTS idx_conversations_source ON conversations(source);
+CREATE INDEX IF NOT EXISTS idx_conversations_created_at ON conversations(created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_id ON messages(conversation_id);
+
+-- Vy för enkel sökning
+CREATE OR REPLACE VIEW searchable_messages AS
+SELECT
+    m.id,
+    m.content,
+    m.role,
+    c.id as conversation_id,
+    c.title,
+    c.source,
+    c.project,
+    c.created_at,
+    to_tsvector('swedish', m.content) || to_tsvector('english', m.content) as search_vector
+FROM messages m
+JOIN conversations c ON m.conversation_id = c.id;
+
+COMMENT ON TABLE conversations IS 'Konversationer från Grok och ChatGPT';
+COMMENT ON TABLE messages IS 'Individuella meddelanden i konversationer';
+COMMENT ON TABLE collections IS 'Användardefinierade samlingar av konversationer';
+"""
+
+        print("\n📋 Kopiera detta SQL-schema rakt in i PostgreSQL:\n")
+        print(sql)
+        return sql

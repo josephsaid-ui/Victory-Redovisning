@@ -14,3 +14,7 @@ browser-cookie3>=0.19.1
 
 # För datahantering
 python-dotenv>=1.0.0
+
+# PostgreSQL-integration (för databas-import)
+psycopg2-binary>=2.9.9
+# Alternativ för produktionsmiljö: psycopg2>=2.9.9 (kräver kompilering)

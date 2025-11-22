@@ -110,13 +110,18 @@ python chat_history_exporter.py --output my_exports
 
 ```
 Victory-Redovisning/
-├── chat_history_exporter.py   # Huvudscript
+├── chat_history_exporter.py   # Huvudscript för export
+├── unified_import.py          # PostgreSQL import-script
+├── example_usage.py           # Programmatiska exempel
 ├── exporters/
 │   ├── __init__.py
 │   ├── chatgpt_exporter.py    # ChatGPT-modul
-│   └── grok_exporter.py       # Grok-modul
+│   └── grok_exporter.py       # Grok-modul (inkl. Selenium)
 ├── config.json                # Din konfiguration (skapa från example)
 ├── config.example.json        # Exempel-konfiguration
+├── .env                       # Databaskonfiguration (skapa från .env.example)
+├── .env.example               # Exempel på databaskonfiguration
+├── schema.sql                 # PostgreSQL databas-schema
 ├── requirements.txt           # Python dependencies
 ├── exports/                   # Output-katalog (skapas automatiskt)
 │   ├── chatgpt_export_*.json
@@ -192,6 +197,156 @@ conversations = exporter.export_conversations()
 ```
 
 Detta kräver Chrome/Chromium installerat på systemet.
+
+## 🗄️ PostgreSQL-integration
+
+För att göra din chatthistorik sökbar och analysera den effektivt kan du importera exports till en PostgreSQL-databas.
+
+### Fördelar
+
+- ⚡ Blixtsnabb full-text sökning (svenska och engelska)
+- 🔍 Fuzzy matching för ungefärliga sökningar
+- 📊 Statistik och analytics
+- 🏷️ Organisera konversationer i collections
+- 🔗 Sök över både Grok och ChatGPT samtidigt
+
+### 1. Installera PostgreSQL
+
+**macOS:**
+```bash
+brew install postgresql@15
+brew services start postgresql@15
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt update
+sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql
+```
+
+**Windows:**
+Ladda ner från [postgresql.org](https://www.postgresql.org/download/windows/)
+
+### 2. Skapa databas
+
+```bash
+# Logga in som postgres-användare
+sudo -u postgres psql
+
+# Skapa databas och användare
+CREATE DATABASE chat_history;
+CREATE USER chat_user WITH PASSWORD 'ditt_lösenord';
+GRANT ALL PRIVILEGES ON DATABASE chat_history TO chat_user;
+
+# Avsluta
+\q
+```
+
+### 3. Kör SQL-schema
+
+```bash
+psql -U chat_user -d chat_history -f schema.sql
+```
+
+### 4. Konfigurera .env
+
+```bash
+cp .env.example .env
+# Redigera .env med dina databasuppgifter
+```
+
+Exempel `.env`:
+```env
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_DB=chat_history
+POSTGRES_USER=chat_user
+POSTGRES_PASSWORD=ditt_lösenord
+```
+
+### 5. Importera exports
+
+```bash
+# Importera en enskild fil
+python unified_import.py exports/grok_export_20241122.json
+
+# Importera alla exports
+python unified_import.py exports/*.json
+
+# Importera specifika filer
+python unified_import.py grok.json chatgpt.json
+```
+
+### 6. Sök i databasen
+
+```sql
+-- Full-text sökning
+SELECT * FROM search_messages('python async', NULL, 10);
+
+-- Fuzzy search i titlar
+SELECT * FROM fuzzy_search_titles('async programming');
+
+-- Sök med highlight
+SELECT
+    c.title,
+    m.role,
+    ts_headline(
+        'swedish',
+        m.content,
+        plainto_tsquery('swedish', 'python'),
+        'StartSel=<mark>, StopSel=</mark>, MaxWords=40'
+    ) as snippet
+FROM messages m
+JOIN conversations c ON m.conversation_id = c.id
+WHERE to_tsvector('swedish', m.content) @@ plainto_tsquery('swedish', 'python')
+LIMIT 10;
+
+-- Statistik per källa
+SELECT
+    source,
+    COUNT(*) as conversations,
+    SUM(message_count) as total_messages
+FROM conversation_overview
+GROUP BY source;
+```
+
+### 7. Skapa collections
+
+```sql
+-- Skapa en collection
+INSERT INTO collections (name, description)
+VALUES ('AI Research', 'Konversationer om AI och machine learning');
+
+-- Lägg till konversationer
+INSERT INTO collection_items (collection_id, conversation_id)
+SELECT 1, id FROM conversations
+WHERE title ILIKE '%AI%' OR title ILIKE '%machine learning%';
+```
+
+### Automatisk export + import
+
+Skapa ett script för daglig backup:
+
+```bash
+#!/bin/bash
+# daily_backup.sh
+
+# Exportera från Grok och ChatGPT
+python chat_history_exporter.py --output backups/$(date +%Y%m%d)
+
+# Importera till databas
+python unified_import.py backups/$(date +%Y%m%d)/*.json
+
+echo "Backup klar!"
+```
+
+Lägg till i crontab:
+```bash
+crontab -e
+# Lägg till denna rad för daglig backup kl 02:00
+0 2 * * * /path/to/daily_backup.sh
+```
 
 ## ⚠️ Viktiga noteringar
 
