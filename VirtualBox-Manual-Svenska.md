@@ -5,9 +5,10 @@
 2. [Installation och Grundinställningar](#installation-och-grundinställningar)
 3. [Skapa en Virtuell Maskin](#skapa-en-virtuell-maskin)
 4. [Vanligaste Inställningar](#vanligaste-inställningar)
-5. [Nätverksinställningar - Detaljerad Guide](#nätverksinställningar---detaljerad-guide)
-6. [Anonym Användning med Nätverksåtkomst](#anonym-användning-med-nätverksåtkomst)
-7. [Tips och Troubleshooting](#tips-och-troubleshooting)
+5. [Optimala Inställningar för Kali Linux på Kraftfull Hårdvara](#optimala-inställningar-för-kali-linux-på-kraftfull-hårdvara)
+6. [Nätverksinställningar - Detaljerad Guide](#nätverksinställningar---detaljerad-guide)
+7. [Anonym Användning med Nätverksåtkomst](#anonym-användning-med-nätverksåtkomst)
+8. [Tips och Troubleshooting](#tips-och-troubleshooting)
 
 ---
 
@@ -140,6 +141,524 @@ Dela filer mellan värd och gäst:
 1. Klicka på USB-ikonen med +
 2. Välj enhet från listan
 3. Enheten kopplas automatiskt till gästen när den ansluts
+
+---
+
+## Optimala Inställningar för Kali Linux på Kraftfull Hårdvara
+
+### Specifikt för Lenovo Legion Pro (i9-275HX, RTX 5070 Ti Mobile, 32GB RAM)
+
+Om du ska köra Kali Linux på en kraftfull gaming-laptop som Lenovo Legion Pro kan du utnyttja hårdvaran maximalt för bästa prestanda. Här är de optimala inställningarna baserat på 2025 års bästa praxis.
+
+#### System Specifikationer (Din Hårdvara)
+- **CPU**: Intel Core i9-275HX (24 kärnor: 8 P-cores + 16 E-cores)
+- **GPU**: NVIDIA RTX 5070 Ti Mobile (8GB VRAM)
+- **RAM**: 32GB DDR5
+
+### Optimal VirtualBox-konfiguration för Kali Linux
+
+#### 1. System → Moderkort
+
+```
+Inställningar → System → Moderkort
+```
+
+**Basminne (RAM):**
+- **Rekommenderat**: 12288 MB (12 GB)
+- **Alternativ**: 16384 MB (16 GB) om du planerar tung användning
+- **Minimum**: 8192 MB (8 GB)
+
+**Motivering**: Med 32GB totalt kan du säkert ge 12-16GB till VM:en utan att påverka värdsystemet. Kali Linux drar nytta av mer RAM för:
+- Stora wordlists och rainbow tables
+- Minneskrävande verktyg (Burp Suite, Metasploit)
+- Flera verktyg samtidigt
+- Browser med många tabs (för web pentesting)
+
+**Övriga inställningar:**
+- **Startsekvent**: Hard Disk (ingen installation behövs för färdigt paket)
+- **Chipset**: ICH9 (nyare och bättre stöd)
+- **Pekdon**: PS/2 Mouse (eller USB om du vill)
+- **Aktivera I/O APIC**: ✓ (Viktigt för flerkärniga system)
+- **Hardware Clock in UTC Time**: ✓ (Standard för Linux)
+- **Enable EFI**: Avaktiverad (om inte Kali kräver det)
+
+#### 2. System → Processor
+
+```
+Inställningar → System → Processor
+```
+
+**Processorer (CPU-kärnor):**
+- **Rekommenderat**: 8 CPU-kärnor
+- **Alternativ**: 6 kärnor (bra balans)
+- **Maximum**: 12 kärnor (om du kör mycket tunga operationer)
+
+**Motivering**: Din i9-275HX har 24 kärnor totalt (8 P-cores + 16 E-cores). Ge VM:en 6-8 kärnor för:
+- Parallell cracking (hashcat, John the Ripper)
+- Nmap-skanningar med många trådar
+- Burp Suite Intruder attacks
+- WiFi-cracking med aircrack-ng
+- Flera verktyg parallellt
+
+**OBS**: VirtualBox ser inte skillnad på P-cores och E-cores, så du får en mix. 8 kärnor är sweet spot för prestanda.
+
+**Övriga processorinställningar:**
+- **Execution Cap**: 100%
+- **Aktivera PAE/NX**: ✓ (Säkerhetsfunktion)
+- **Aktivera Nested VT-x/AMD-V**: ❌ (Behövs inte för Kali)
+
+#### 3. System → Acceleration
+
+```
+Inställningar → System → Acceleration
+```
+
+**Paravirtualisering:**
+- **Inställning**: KVM (bäst för Linux gäster)
+- **Alternativ**: Default (låter VirtualBox välja)
+
+**Motivering**: KVM (Kernel-based Virtual Machine) ger bästa prestanda för Linux-gäster på moderna Intel-processorer.
+
+**Hårdvaruaccelleration:**
+- **Aktivera VT-x/AMD-V**: ✓ (MÅSTE vara aktiverad!)
+- **Aktivera Nested Paging**: ✓ (Stor prestandaförbättring)
+
+**VIKTIGT**: Kontrollera att virtualiseringsteknologi är aktiverad i BIOS:
+1. Starta om och tryck F2/F1/Delete för BIOS
+2. Leta efter: "Intel Virtualization Technology" eller "VT-x"
+3. Sätt till: Enabled
+4. Leta efter: "VT-d" (optional men bra)
+5. Spara och starta om
+
+#### 4. Display (Skärm)
+
+```
+Inställningar → Skärm → Screen
+```
+
+**Videominne:**
+- **Rekommenderat**: 128 MB
+- **Minimum**: 64 MB
+
+**Motivering**: Kali Linux GUI (XFCE/KDE) kräver inte mycket videominne. 128MB räcker gott för:
+- Full HD upplösning (1920x1080)
+- Flera skärmar
+- Smooth desktop-upplevelse
+
+**Skala Factor:**
+- **Inställning**: 100%
+- **Alternativ**: 200% om du har 4K-skärm och vill större text
+
+**Grafikkontroller:**
+- **Rekommenderat**: VMSVGA
+- **Alternativ**: VBoxVGA eller VBoxSVGA
+
+**Motivering**: VMSVGA har bäst Linux-stöd och fungerar utmärkt med Kali.
+
+**Acceleration:**
+- **Aktivera 3D-acceleration**: ✓ (Kan aktiveras för smidigare desktop)
+- **Antal skärmar**: 1 (eller fler om du har flera monitorer)
+
+**OBS**: Din RTX 5070 Ti används INTE direkt av VM:en (VirtualBox kan inte GPU passthrough lätt). Men 3D-acceleration via VirtualBox hjälper ändå.
+
+#### 5. Storage (Lagring)
+
+```
+Inställningar → Lagring
+```
+
+**Virtuell hårddisk:**
+- **Storlek**: 80 GB (dynamiskt allokerad)
+- **Typ**: VDI (VirtualBox Disk Image)
+- **Alternativ**: 100-120 GB om du lagrar stora dataset
+
+**Motivering**: Kali Linux färdigt paket är ca 20-30GB, men du vill ha utrymme för:
+- Wordlists (rockyou.txt och större)
+- Captured network traffic (pcap-filer)
+- Exploit databases
+- Custom scripts och verktyg
+- Log-filer från pentests
+
+**Storage Controller:**
+- **SATA Controller**: AHCI (standard, bra prestanda)
+- **Enable Host I/O Cache**: ✓ (Snabbare disk-operationer)
+- **Solid-state Drive**: ✓ (Om din VDI ligger på SSD - vilket den borde!)
+
+**TIPS**: Placera VirtualBox VMs på din snabbaste disk (NVMe SSD om möjligt).
+
+#### 6. Nätverk
+
+```
+Inställningar → Nätverk → Adapter 1
+```
+
+**För Penetration Testing och Säkerhetsarbete:**
+
+**Setup 1: NAT (Säker och isolerad)**
+```
+Adapter 1:
+- Aktivera nätverksadapter: ✓
+- Ansluten till: NAT
+- Adapter Type: Intel PRO/1000 MT Desktop (82540EM)
+- Promiscuous Mode: Allow All (viktigt för nätverkssniffning!)
+- Cable Connected: ✓
+```
+
+**Motivering**: NAT är bra för grundläggande testning och skyddar ditt huvudnätverk.
+
+**Setup 2: Bridged (För verklig nätverkstestning)**
+```
+Adapter 1:
+- Aktivera nätverksadapter: ✓
+- Ansluten till: Bridged Adapter
+- Namn: Välj ditt WiFi/Ethernet-kort
+- Adapter Type: Intel PRO/1000 MT Desktop
+- Promiscuous Mode: Allow All
+- Cable Connected: ✓
+```
+
+**Motivering**: Bridged låter Kali se hela nätverket som om det vore en fysisk maskin - perfekt för:
+- Nätverks-scanning (Nmap)
+- Man-in-the-middle-attacker
+- WiFi-pentesting
+- Sårbarhetsskanning med Nessus/OpenVAS
+
+**OBS**: Använd Bridged ENDAST i testmiljöer eller nätverk du har tillstånd att testa!
+
+**Setup 3: Dual Adapter (Bästa av båda)**
+```
+Adapter 1: NAT (för internet)
+Adapter 2: Host-only (för kommunikation med värd)
+```
+
+**Promiscuous Mode**: Detta är VIKTIGT för Kali! Sätts till "Allow All" för att:
+- Använda Wireshark för packet capture
+- Sniffa nätverkstrafik
+- MITM-attacker
+- ARP-spoofing
+
+#### 7. USB-inställningar
+
+```
+Inställningar → USB
+```
+
+**För WiFi-adapters och hårdvara:**
+- **USB-kontroller**: USB 3.0 (xHCI) Controller
+- **Aktivera USB-kontroller**: ✓
+
+**USB-filter (Lägg till specifika enheter):**
+
+**För externa WiFi-adapters (viktigt för Kali!):**
+1. Klicka på USB+ ikonen
+2. Välj din WiFi-adapter (ex: Alfa AWUS036ACH, TP-Link TL-WN722N)
+3. Adaptern kopplas automatiskt till Kali när den pluggas in
+
+**Motivering**: Inbyggt WiFi i laptops fungerar ofta dåligt för packet injection. Externa USB WiFi-adapters med monitor mode är standard för:
+- WiFi-cracking
+- Evil Twin-attacker
+- Deauthentication-attacker
+- WPA/WPA2 handshake capture
+
+**Rekommenderade WiFi-adapters för Kali:**
+- Alfa AWUS036ACH (mycket populär)
+- Alfa AWUS036NH
+- TP-Link TL-WN722N v1 (OBS: v1 endast!)
+- Panda PAU09
+
+#### 8. Shared Folders (Delade mappar)
+
+```
+Inställningar → Delade mappar
+```
+
+**Rekommendation för Kali:**
+
+**Setup för arbetsflöde:**
+```
+Mappnamn: kali-shared
+Mappsökväg: C:\Users\DinAnvändare\KaliShare (Windows)
+           eller /home/användare/KaliShare (Linux värd)
+Auto-mount: ✓
+Monterings-punkt: /mnt/shared
+Gör permanent: ✓
+```
+
+**Användning**:
+- Överför wordlists från värd till Kali
+- Exportera rapporter från Kali till värd
+- Dela exploit-scripts
+- Backup av viktiga filer
+
+**I Kali**, montera med:
+```bash
+# Skapa mount-punkt
+sudo mkdir -p /mnt/shared
+
+# Montera (om inte auto-mount fungerar)
+sudo mount -t vboxsf kali-shared /mnt/shared
+
+# Lägg till din användare i vboxsf-gruppen
+sudo usermod -aG vboxsf $(whoami)
+
+# Logga ut och in igen
+```
+
+#### 9. Guest Additions
+
+**Ska jag installera Guest Additions i Kali?**
+
+**JA - för bättre användarupplevelse:**
+- Smidigare mushantering
+- Bättre skärmupplösning (automatisk resize)
+- Delad mapp fungerar direkt
+- Copy/paste mellan värd och gäst
+- Drag and drop-filer
+
+**Installation i Kali:**
+```bash
+# Uppdatera systemet först
+sudo apt update && sudo apt upgrade -y
+
+# Installera dependencies
+sudo apt install -y build-essential dkms linux-headers-$(uname -r)
+
+# I VirtualBox: Devices → Insert Guest Additions CD image
+# Kör installationen
+cd /media/cdrom
+sudo sh ./VBoxLinuxAdditions.run
+
+# Starta om
+sudo reboot
+```
+
+**NEJ - för maximal säkerhet och isolation:**
+- Om du kör Kali för high-risk pentesting
+- Om du vill minimera attack surface
+- För forensik-arbete där integritet är kritisk
+
+### Sammanfattning: Optimala inställningar för Kali på Legion Pro
+
+#### Snabbkonfiguration
+
+```
+SYSTEM:
+├─ Moderkort
+│  ├─ RAM: 12288 MB (12 GB)
+│  ├─ Chipset: ICH9
+│  └─ I/O APIC: Aktiverad
+│
+├─ Processor
+│  ├─ CPU-kärnor: 8
+│  └─ PAE/NX: Aktiverad
+│
+└─ Acceleration
+   ├─ Paravirtualisering: KVM
+   ├─ VT-x: Aktiverad (kontrollera BIOS!)
+   └─ Nested Paging: Aktiverad
+
+DISPLAY:
+├─ Videominne: 128 MB
+├─ Grafikkontroller: VMSVGA
+└─ 3D-acceleration: Aktiverad
+
+STORAGE:
+├─ Typ: VDI (dynamisk)
+├─ Storlek: 80 GB
+├─ Controller: SATA/AHCI
+└─ Host I/O Cache: Aktiverad
+
+NÄTVERK:
+├─ Adapter 1: NAT eller Bridged
+├─ Adapter Type: Intel PRO/1000 MT
+└─ Promiscuous Mode: Allow All
+
+USB:
+├─ Controller: USB 3.0 (xHCI)
+└─ Filter: Lägg till WiFi-adapters
+
+SHARED FOLDERS:
+└─ Setup: En delad mapp för överföringar
+```
+
+### Prestanda-optimeringar för Kali Linux
+
+#### 1. I Värdsystemet (Windows/Linux)
+
+**Stäng onödiga program:**
+- Kali + 8GB värd = 20GB använt av 32GB
+- 12GB fritt för värdsystem är gott om
+
+**Prioritering av VirtualBox:**
+```batch
+REM Windows: Kör som Administratör
+start /high "VirtualBox" "C:\Program Files\Oracle\VirtualBox\VirtualBox.exe"
+```
+
+**Antivirus-undantag:**
+- Lägg till VirtualBox-mappen i undantag
+- Lägg till .vdi-filen i undantag
+- Förhindrar scanning som saktar ner VM
+
+#### 2. I Kali Linux (Gästsystem)
+
+**Inaktivera onödiga tjänster:**
+```bash
+# Se vilka tjänster som körs
+systemctl list-unit-files --state=enabled
+
+# Inaktivera tjänster du inte behöver (exempel)
+sudo systemctl disable bluetooth.service
+sudo systemctl disable cups.service  # Om du inte skriver ut
+```
+
+**Använd lightweight desktop:**
+- Kali default: XFCE (redan lätt)
+- Alternativ: i3 window manager (ännu lättare)
+
+**Optimera swap:**
+```bash
+# Kolla nuvarande swappiness
+cat /proc/sys/vm/swappiness
+
+# Minska swappiness (mer RAM, mindre disk)
+sudo sysctl vm.swappiness=10
+
+# Gör permanent
+echo "vm.swappiness=10" | sudo tee -a /etc/sysctl.conf
+```
+
+#### 3. Disk-optimering
+
+**Komprimera VDI när den växer:**
+```bash
+# Från värdsystemet, när VM är avstängd
+cd "C:\Program Files\Oracle\VirtualBox"
+
+# Komprimera (återvinn utrymme)
+VBoxManage modifymedium disk "C:\Sökväg\Till\Kali.vdi" --compact
+```
+
+**Periodic TRIM (om på SSD):**
+```bash
+# I Kali
+sudo fstrim -av
+```
+
+### Verktyg som drar nytta av denna konfigurationen
+
+Med 12GB RAM och 8 CPU-kärnor kan du köra:
+
+**Parallell processing:**
+- **Hashcat**: Använder alla 8 CPU-kärnor för cracking
+- **John the Ripper**: Multi-threaded password cracking
+- **Hydra**: Parallella brute-force-attacker
+- **Nmap**: Snabba skanningar med `-T4` eller `-T5`
+
+**Minneskrävande verktyg:**
+- **Burp Suite Professional**: Körs smidigt med 12GB
+- **Metasploit Framework**: Många moduler samtidigt
+- **Wireshark**: Stora packet captures
+- **Maltego**: Grafdataanalys
+
+**Samtidig användning:**
+- Firefox med många tabs (för web pentesting)
+- Burp Suite i bakgrunden
+- Terminal med flera verktyg
+- Wireshark packet capture
+- Metasploit listener
+
+### Troubleshooting för Kali på Legion Pro
+
+#### Problem: VM är långsam trots kraftfull hårdvara
+
+**Lösningar:**
+1. **Kontrollera VT-x i BIOS**: Måste vara aktiverad!
+2. **Öka RAM**: Från 8GB till 12GB eller 16GB
+3. **Kontrollera Hyper-V**: På Windows, inaktivera Hyper-V om aktiverat
+   ```batch
+   bcdedit /set hypervisorlaunchtype off
+   ```
+4. **Kolla CPU-användning**: På värd, se om något annat tar resurser
+
+#### Problem: Ingen internet i Kali
+
+**Lösningar:**
+1. **Kontrollera nätverksadapter**: Ska vara aktiverad i VirtualBox
+2. **Testa i Kali:**
+   ```bash
+   # Kolla interface
+   ip addr show
+
+   # Kolla routing
+   ip route show
+
+   # Testa DNS
+   ping 8.8.8.8
+   ping google.com
+
+   # Starta om nätverket
+   sudo systemctl restart NetworkManager
+   ```
+
+#### Problem: USB WiFi-adapter syns inte i Kali
+
+**Lösningar:**
+1. **Installera Extension Pack**:
+   - Ladda ner från virtualbox.org (samma version som VirtualBox)
+   - Fil → Inställningar → Extensions → Lägg till
+2. **Skapa USB-filter**: I VM-inställningar
+3. **Koppla från värd**:
+   - Windows: Device Manager → Inaktivera adaptern
+   - Sedan anslut till VM via VirtualBox-menyn
+4. **Kontrollera i Kali:**
+   ```bash
+   # Lista USB-enheter
+   lsusb
+
+   # Se om WiFi-adapter finns
+   iwconfig
+   airmon-ng
+   ```
+
+#### Problem: Dålig grafisk prestanda
+
+**Lösningar:**
+1. **Installera Guest Additions** (se ovan)
+2. **Öka videominne**: Till 128 MB
+3. **Aktivera 3D-acceleration**
+4. **Byt grafikkontroller**: Testa VMSVGA, VBoxVGA, VBoxSVGA
+
+### Specifika tips för Legion Pro-användare
+
+#### 1. Batteritid vs Prestanda
+
+**På batteri**: VirtualBox drar mycket ström. Förväntad batteritid:
+- Normal användning: 2-3 timmar
+- Tung pentesting: 1-2 timmar
+
+**Tips**: Kör på ström vid tunga operationer (hashcracking, scanning).
+
+#### 2. Kylning och Termalbegränsning
+
+Legion Pro har bra kylning men VM:er genererar värme:
+- **Använd Lenovo Vantage**: Sätt profil till "Performance Mode"
+- **Elevera laptop**: Bättre luftflöde = mindre thermal throttling
+- **Övervaka temperaturer**: Med HWiNFO64 (Windows) eller lm-sensors (Linux)
+
+#### 3. GPU-användning
+
+Din RTX 5070 Ti används **inte direkt** av VM:en. Men:
+- **GPU-baserad cracking**: Kör hashcat på värdsystemet istället
+- **Eller**: Använd GPU-passthrough (avancerat, kräver KVM inte VirtualBox)
+
+**Alternativ för GPU-cracking:**
+```bash
+# I värdsystemet (Windows med hashcat installerat)
+hashcat -m 1000 -a 0 hashes.txt wordlist.txt
+
+# Överför result till Kali via delad mapp
+```
 
 ---
 
@@ -678,16 +1197,71 @@ Kopiera .vdi filen från VM-mappen (när VM är avstängd).
 5. Testa DNS/WebRTC-läckor
 6. Använd snapshots
 
+### Kali Linux på Legion Pro (Snabbreferens)
+
+**Optimala inställningar för i9-275HX, RTX 5070 Ti Mobile, 32GB RAM:**
+
+| Komponent | Inställning | Värde |
+|-----------|-------------|-------|
+| RAM | Basminne | 12288 MB (12 GB) |
+| CPU | Processorer | 8 kärnor |
+| CPU | Paravirtualisering | KVM |
+| Display | Videominne | 128 MB |
+| Display | Grafikkontroller | VMSVGA |
+| Display | 3D-acceleration | Aktiverad |
+| Storage | Diskstorlek | 80 GB (dynamisk) |
+| Storage | Controller | SATA/AHCI |
+| Nätverk | Adapter Type | Intel PRO/1000 MT |
+| Nätverk | Promiscuous Mode | Allow All |
+| USB | Controller | USB 3.0 (xHCI) |
+| System | VT-x/AMD-V | Aktiverad (kontrollera BIOS!) |
+| System | Nested Paging | Aktiverad |
+| System | I/O APIC | Aktiverad |
+| System | Chipset | ICH9 |
+
+**Nätverksval för Kali:**
+- **NAT**: Grundläggande säker testning
+- **Bridged**: Fullständig nätverksaccess (pentesting i testmiljö)
+- **NAT + Host-only**: Bästa av båda (dual adapter)
+
+**Viktiga tillägg:**
+- **VirtualBox Extension Pack**: För USB 3.0-stöd (WiFi-adapters)
+- **Guest Additions**: För bättre prestanda och delad mapp
+- **External WiFi Adapter**: Alfa AWUS036ACH eller liknande
+
+**Prestanda-tips:**
+1. Placera VDI på NVMe SSD
+2. Lägg till VirtualBox i antivirus-undantag
+3. Aktivera "Performance Mode" i Lenovo Vantage
+4. Kör på ström vid tunga operationer
+
+**Se fullständig guide i kapitel 5** för detaljerad konfiguration.
+
 ---
 
 ## Resurser och länkar
 
+**VirtualBox:**
 - **VirtualBox**: https://www.virtualbox.org/
+- **VirtualBox Extension Pack**: https://www.virtualbox.org/wiki/Downloads
+- **VirtualBox Manual**: https://www.virtualbox.org/manual/
+
+**Operativsystem:**
+- **Kali Linux**: https://www.kali.org/
 - **Tails OS**: https://tails.boum.org/
 - **Whonix**: https://www.whonix.org/
+
+**Säkerhet och anonymitet:**
 - **Tor Project**: https://www.torproject.org/
 - **DNS Leak Test**: https://dnsleaktest.com/
 - **Browser Leaks**: https://browserleaks.com/
+- **IP Check**: https://check.torproject.org/
+
+**Kali Linux-verktyg:**
+- **Metasploit**: https://www.metasploit.com/
+- **Burp Suite**: https://portswigger.net/burp
+- **Wireshark**: https://www.wireshark.org/
+- **Nmap**: https://nmap.org/
 
 ---
 
