@@ -2983,3 +2983,591 @@ Du har rest från grundläggande koncept (5-åringen) till professionell mastern
 
 **Lycka till i din reverse engineering-karriär!**
 
+
+---
+
+## 🏴‍☠️ BONUSKAPITEL: Red Team vs Blue Team – Trial Extension Challenge
+
+### ⚠️ VIKTIGA ETISKA RIKTLINJER
+
+**Detta kapitel är ENDAST för educational purposes!**
+
+- ✅ **Tillåtet**: Analysera egen programvara, CTF-challenges, testapplikationer du skapat
+- ✅ **Tillåtet**: Säkerhetstestning med explicit tillstånd
+- ✅ **Tillåtet**: Lära sig tekniker för att förstå både attack och försvar
+- ❌ **INTE tillåtet**: Cracking av kommersiell mjukvara utan tillstånd
+- ❌ **INTE tillåtet**: Distribution av crackade versioner
+- ❌ **INTE tillåtet**: Bryta EULA eller copyright-lagar
+
+**Juridisk påminnelse**: Reverse engineering av kommersiell mjukvara för att kringgå licensbegränsningar är ofta olagligt enligt DMCA (USA) och liknande lagar i andra länder. Denna övning ska ENDAST utföras på mjukvara du äger eller har explicit tillstånd att testa.
+
+---
+
+### 🎯 Scenariot: The Trial Extension Bounty Hunt
+
+**Bakgrund**:
+
+Din organisation har utvecklat en testapplikation **"ProApp Trial"** för att träna säkerhetsteamet. Applikationen har en 30-dagars provperiod och sedan kräver den en licens.
+
+**Red Team Mission**: 🔴
+- Analysera applikationen
+- Hitta sätt att förlänga provperioden till "tills vidare"
+- Dokumentera din metod
+- **Pris**: Den smartaste/mest kreativa lösningen vinner en röd t-shirt! 🎽
+
+**Blue Team Mission**: 🔵
+- Efter att red team presenterat sina lösningar: patcha sårbarheter
+- Implementera anti-tampering
+- Dokumentera försvar
+- **Mål**: Gör det så svårt som möjligt för red team att lyckas
+
+**Tillåtna verktyg**:
+- Ghidra (statisk analys)
+- Frida (dynamisk instrumentation)
+- x64dbg (debugger)
+- Hex editors (HxD, 010 Editor)
+- String/import analyzers
+- Egna scripts och verktyg
+
+---
+
+### 📦 Testapplikationen: ProApp Trial
+
+För denna övning, här är en hypotetisk applikation med typiska trial-implementationer.
+
+#### Applikationsbeskrivning
+
+**ProApp Trial v1.0** - En enkel Windows desktop-applikation
+
+**Funktioner**:
+- Vid första start: Skapar ett installationsdatum
+- Varje gång appen startar: Kontrollerar antal dagar sedan installation
+- Om < 30 dagar: "Trial mode: X days remaining"
+- Om ≥ 30 dagar: "Trial expired! Please purchase a license."
+
+**Persistent storage** (där trial-data lagras):
+```
+Registry: HKCU\Software\ProApp\InstallDate (DWORD - Unix timestamp)
+File: C:\Users\[user]\AppData\Local\ProApp\trial.dat (encrypted)
+```
+
+#### Källkod (för blue team reference)
+
+```c
+// trial_check.c (förenklad version)
+#include <windows.h>
+#include <time.h>
+
+#define TRIAL_DAYS 30
+
+// Check if trial has expired
+BOOL isTrialValid() {
+    HKEY hKey;
+    DWORD installDate = 0;
+    DWORD dataSize = sizeof(DWORD);
+
+    // Read install date from registry
+    if (RegOpenKeyEx(HKEY_CURRENT_USER,
+                     "Software\\ProApp",
+                     0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        RegQueryValueEx(hKey, "InstallDate", NULL, NULL,
+                       (LPBYTE)&installDate, &dataSize);
+        RegCloseKey(hKey);
+    }
+
+    // If no install date, this is first run - set it
+    if (installDate == 0) {
+        installDate = (DWORD)time(NULL);
+        RegCreateKeyEx(HKEY_CURRENT_USER, "Software\\ProApp",
+                      0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL);
+        RegSetValueEx(hKey, "InstallDate", 0, REG_DWORD,
+                     (LPBYTE)&installDate, sizeof(DWORD));
+        RegCloseKey(hKey);
+        return TRUE;
+    }
+
+    // Calculate days since install
+    DWORD currentTime = (DWORD)time(NULL);
+    DWORD daysPassed = (currentTime - installDate) / 86400;
+
+    return (daysPassed < TRIAL_DAYS);
+}
+
+int main() {
+    if (isTrialValid()) {
+        printf("Welcome to ProApp! Trial version.\n");
+        // Run application
+    } else {
+        MessageBox(NULL,
+                  "Trial period has expired!\nPlease purchase a license.",
+                  "ProApp - Trial Expired",
+                  MB_ICONERROR);
+        return 1;
+    }
+    return 0;
+}
+```
+
+---
+
+## 🔴 Red Team: Attack Vectors
+
+### Vector 1: Registry Manipulation (Beginner)
+
+**Strategi**: Ändra `InstallDate` i registry till ett framtida datum.
+
+**Metod**:
+1. Öppna **Registry Editor** (regedit)
+2. Navigera till `HKCU\Software\ProApp`
+3. Hitta `InstallDate` (DWORD value)
+4. Ändra värdet till ett framtida datum (t.ex. Unix timestamp för 2030)
+
+**Verktyg**: Ingen RE krävs - bara Registry Editor
+
+**Effektivitet**: ⭐ (1/5) - Enkelt att patcha
+
+**Blue Team Countermeasure**:
+- Använd checksums på registry-värden
+- Lagra datum på flera platser och verifiera konsistens
+- Kryptera lagrad data
+
+---
+
+### Vector 2: Time Manipulation (Beginner-Intermediate)
+
+**Strategi**: Ändra systemklockan så att applikationen tror det är tidigare datum.
+
+**Metod 1 - System Time**:
+1. Ändra Windows systemtid till ett tidigare datum
+2. Starta applikationen
+3. Återställ systemtid
+
+**Metod 2 - Frida Hook (mer sofistikerat)**:
+```javascript
+// frida_time_hook.js
+// Hook time() function
+Interceptor.attach(Module.findExportByName(null, "time"), {
+    onEnter: function(args) {
+        console.log("time() called");
+    },
+    onLeave: function(retval) {
+        // Return a timestamp from 2024 instead of actual time
+        retval.replace(1704067200); // Jan 1, 2024
+        console.log("time() hooked! Returned: " + retval);
+    }
+});
+```
+
+**Kör med Frida**:
+```bash
+frida -l frida_time_hook.js -f ProApp.exe
+```
+
+**Effektivitet**: ⭐⭐ (2/5) - Fungerar tills blue team härdar mot det
+
+**Blue Team Countermeasure**:
+- Använd flera tidskällor (network time, hardware clock)
+- Detektera time anomalies (tid går bakåt)
+- Anti-Frida detection
+
+---
+
+### Vector 3: Code Patching with Ghidra (Intermediate)
+
+**Strategi**: Analysera binären i Ghidra och patcha kontrollen så den alltid returnerar "valid".
+
+**Steg-för-steg**:
+
+**Steg 1: Statisk analys**
+```
+1. Öppna ProApp.exe i Ghidra
+2. Sök efter strängar: "Trial expired"
+3. Hitta referenser till strängen
+4. Navigera till funktionen som innehåller checken
+```
+
+**Steg 2: Identifiera kontrollen**
+
+I Decompiler ser du kanske:
+```c
+if (isTrialValid() == 0) {
+    MessageBox(..., "Trial expired!", ...);
+    return 1;
+}
+```
+
+I Listing (assembler):
+```
+00401234  CALL   isTrialValid
+00401239  TEST   EAX, EAX        ; Test if EAX == 0
+0040123B  JNZ    valid_trial      ; Jump if not zero (valid)
+0040123D  PUSH   error_message
+00401242  CALL   MessageBox
+```
+
+**Steg 3: Patcha**
+
+**Metod A**: Ändra `JNZ` (Jump if Not Zero) till `JMP` (unconditional jump)
+- `JNZ` = `75 XX` → `JMP` = `EB XX`
+
+**Metod B**: NOP:a ut testen
+- Ersätt `TEST EAX, EAX` och `JNZ` med NOP (`90 90 90 90...`)
+
+**Metod C**: Force return value
+- Ändra `isTrialValid` att alltid returnera 1:
+  ```
+  00401500  MOV  EAX, 1   ; Force true
+  00401505  RET
+  ```
+
+**Verktyg för patching**:
+1. Ghidra: **Patch Instruction** (Ctrl+Shift+G)
+2. Eller x64dbg: Högerklicka → Assemble → ändra instruktion
+3. Exportera patchad binär
+
+**Effektivitet**: ⭐⭐⭐ (3/5) - Kräver RE-kunskap, men enkelt att patcha
+
+**Blue Team Countermeasure**:
+- Code signing (digital signatures)
+- Integrity checks (checksum av .text section)
+- Anti-debugging/anti-tampering
+
+---
+
+### Vector 4: Memory Patching with x64dbg (Intermediate-Advanced)
+
+**Strategi**: Runtime-patching utan att modifiera filen på disk.
+
+**Steg-för-steg**:
+
+1. **Öppna i x64dbg**:
+   ```
+   File → Open → ProApp.exe
+   ```
+
+2. **Sätt breakpoint på interessant funktion**:
+   - Sök efter string "Trial expired"
+   - Sätt breakpoint på funktionen som anropar MessageBox
+
+3. **Kör programmet** (F9)
+   - När breakpoint träffas, inspektera registren
+   - EAX innehåller troligen return-värdet från `isTrialValid`
+
+4. **Modifiera EAX**:
+   - Högerklicka på EAX → Modify value → 1
+   - Eller i kommandoraden: `eax = 1`
+
+5. **Continue execution** (F9)
+   - Applikationen körs nu som om trial är valid!
+
+**Effektivitet**: ⭐⭐⭐ (3/5) - Funkar för en session, måste göras varje gång
+
+**Blue Team Countermeasure**:
+- Anti-debugging (IsDebuggerPresent, CheckRemoteDebuggerPresent)
+- Timing checks (kod som tar längre tid under debugging)
+- Hardware breakpoint detection
+
+---
+
+### Vector 5: Frida Dynamic Instrumentation (Advanced)
+
+**Strategi**: Hook `isTrialValid` och force return value.
+
+**Frida Script**:
+```javascript
+// frida_trial_bypass.js
+
+// Method 1: Hook by function name (if symbols available)
+var isTrialValid = Module.findExportByName("ProApp.exe", "isTrialValid");
+if (isTrialValid) {
+    Interceptor.attach(isTrialValid, {
+        onLeave: function(retval) {
+            console.log("isTrialValid called, original return:", retval);
+            retval.replace(1); // Always return TRUE
+            console.log("Forced return: 1");
+        }
+    });
+}
+
+// Method 2: Hook by pattern (if no symbols)
+var baseAddr = Module.findBaseAddress("ProApp.exe");
+var isTrialValidAddr = baseAddr.add(0x1234); // Offset from Ghidra
+
+Interceptor.attach(isTrialValidAddr, {
+    onLeave: function(retval) {
+        retval.replace(1);
+    }
+});
+
+// Method 3: Hook MessageBox and filter out "expired" message
+var messageBoxW = Module.findExportByName("user32.dll", "MessageBoxW");
+Interceptor.attach(messageBoxW, {
+    onEnter: function(args) {
+        var text = args[1].readUtf16String();
+        if (text.includes("expired")) {
+            console.log("Blocking 'Trial expired' message");
+            this.context.eax = 0; // Skip MessageBox
+            // Skip this function call
+            this.shouldReturn = true;
+        }
+    },
+    onLeave: function(retval) {
+        if (this.shouldReturn) {
+            retval.replace(1); // IDOK
+        }
+    }
+});
+
+console.log("Frida trial bypass loaded!");
+```
+
+**Kör**:
+```bash
+frida -l frida_trial_bypass.js -f ProApp.exe
+# eller attach till running process:
+frida -l frida_trial_bypass.js ProApp.exe
+```
+
+**Effektivitet**: ⭐⭐⭐⭐⭐ (5/5) - Mycket kraftfullt, fungerar runtime utan att modifiera filer
+
+**Blue Team Countermeasure**:
+- Anti-Frida detection (leta efter frida-server, frida-agent)
+- Code obfuscation
+- Runtime integrity checks
+- Encrypted critical functions
+
+---
+
+## 🔵 Blue Team: Defense Strategies
+
+### Defense Layer 1: Basic Hardening
+
+**1. Multiple Storage Locations**:
+```c
+// Store trial data in 3 places
+BOOL verifyTrialData() {
+    DWORD reg_date = readFromRegistry();
+    DWORD file_date = readFromFile();
+    DWORD alt_date = readFromAlternateLocation();
+
+    // All must match
+    if (reg_date != file_date || file_date != alt_date) {
+        // Tampering detected!
+        return FALSE;
+    }
+    return isValidDate(reg_date);
+}
+```
+
+**2. Checksums**:
+```c
+DWORD calculateChecksum(DWORD data) {
+    // Simple checksum (use better crypto in production)
+    return (data ^ 0xDEADBEEF) * 0x12345678;
+}
+
+BOOL verifyIntegrity() {
+    DWORD installDate = readFromRegistry();
+    DWORD storedChecksum = readChecksumFromRegistry();
+    DWORD calculatedChecksum = calculateChecksum(installDate);
+
+    return (storedChecksum == calculatedChecksum);
+}
+```
+
+**3. Anti-Debugging**:
+```c
+BOOL checkDebugger() {
+    if (IsDebuggerPresent()) {
+        MessageBox(NULL, "Debugger detected!", "Error", MB_OK);
+        ExitProcess(1);
+    }
+
+    BOOL isDebugged = FALSE;
+    CheckRemoteDebuggerPresent(GetCurrentProcess(), &isDebugged);
+    if (isDebugged) {
+        ExitProcess(1);
+    }
+
+    return TRUE;
+}
+```
+
+---
+
+### Defense Layer 2: Obfuscation
+
+**Control Flow Obfuscation**:
+```c
+// Instead of linear code, use state machine
+int obfuscated_isTrialValid() {
+    int state = 0;
+    int result = 0;
+
+    while (1) {
+        switch (state) {
+            case 0:
+                // Load install date
+                state = (checkIntegrity() ? 1 : 99);
+                break;
+            case 1:
+                // Calculate days
+                state = 2;
+                break;
+            case 2:
+                // Compare with limit
+                if (/* trial valid */) {
+                    state = 10;
+                } else {
+                    state = 20;
+                }
+                break;
+            case 10:
+                result = 1;
+                state = 100;
+                break;
+            case 20:
+                result = 0;
+                state = 100;
+                break;
+            case 99:
+                // Integrity check failed
+                ExitProcess(1);
+            case 100:
+                return result;
+        }
+    }
+}
+```
+
+---
+
+## 🏆 Scoring Matrix: Red Team
+
+| Attack Vector | Difficulty | Stealth | Persistence | Points |
+|---------------|------------|---------|-------------|--------|
+| Registry Edit | ⭐ | ⭐ | ⭐⭐ | 10 |
+| Time Manipulation | ⭐⭐ | ⭐⭐ | ⭐ | 15 |
+| Code Patching (Ghidra) | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | 40 |
+| Memory Patching (x64dbg) | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐ | 30 |
+| Frida Instrumentation | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | 60 |
+
+**Bonus Points**:
+- **Creativity** (+20): Unikt tillvägagångssätt ingen annan tänkt på
+- **Elegance** (+10): Minimal kod, maximal effekt
+- **Documentation** (+10): Tydlig förklaring av metod
+
+**Högsta möjliga poäng**: 125 points
+
+---
+
+## 🛡️ Scoring Matrix: Blue Team
+
+| Defense Layer | Effectiveness | Implementation | Maintenance | Points |
+|---------------|---------------|----------------|-------------|--------|
+| Basic Hardening | ⭐⭐ | ⭐ | ⭐⭐ | 20 |
+| Anti-Debugging | ⭐⭐⭐ | ⭐⭐ | ⭐⭐ | 30 |
+| Anti-Tampering | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ | 40 |
+| Obfuscation | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ | 45 |
+
+**Bonus Points**:
+- **Resilience** (+20): Försvar fungerar mot flera attack-vektorer
+- **Performance** (+10): Minimal impact på applikationsprestanda
+- **Innovation** (+15): Nya defensiva tekniker
+
+**Högsta möjliga poäng**: 125 points
+
+---
+
+## 📊 Practical Exercise: Full Simulation
+
+### Phase 1: Red Team Attack (Week 1)
+
+**Övning**:
+1. **Skapa testapplikation** (eller använd befintlig educational software)
+2. **Dela in i red teams** (2-4 personer per team)
+3. **Ge varje team 1 vecka** att hitta så många sätt som möjligt
+4. **Dokumentera**: Metod, verktyg, steg-för-steg guide
+
+**Deliverables**:
+- Teknisk rapport (3-5 sidor)
+- Demo-video eller live presentation
+- Working PoC (code/scripts)
+
+### Phase 2: Blue Team Defense (Week 2)
+
+**Övning**:
+1. **Red team presenterar** sina metoder
+2. **Blue team får tillgång** till källkod
+3. **Implementera försvar** mot alla upptäckta attacker
+4. **Testa**: Kör red team attacks mot patchad version
+
+**Deliverables**:
+- Patched application
+- Defense architecture document
+- Test results mot tidigare attacks
+
+### Phase 3: Round 2 (Week 3 - Optional)
+
+**Red team försöker igen**:
+- Kan de bypassa de nya försvarerna?
+- Nya attack-vektorer?
+
+**Iterativ process** - precis som verkligheten!
+
+---
+
+## 🎓 Learning Outcomes
+
+Efter denna övning ska du kunna:
+
+**Red Team Skills**:
+- ✅ Analysera binärer för trial/license-checks
+- ✅ Använda Ghidra för statisk analys och patching
+- ✅ Använda x64dbg för dynamisk analys
+- ✅ Skriva Frida scripts för runtime hooking
+- ✅ Identifiera och exploatera vanliga svagheter
+- ✅ Dokumentera exploits professionellt
+
+**Blue Team Skills**:
+- ✅ Implementera anti-debugging tekniker
+- ✅ Implementera anti-tampering tekniker
+- ✅ Designa robust licensverifiering
+- ✅ Använda code obfuscation effektivt
+- ✅ Balansera säkerhet vs användarupplevelse
+- ✅ Förstå attacker för att bygga bättre försvar
+
+**Universal Skills**:
+- ✅ Förstå attack/defense dynamics
+- ✅ Tänka som både attacker och defender
+- ✅ Dokumentera tekniska fynd
+- ✅ Samarbeta i team
+- ✅ Iterativ förbättring (red vs blue cycles)
+
+---
+
+## ⚠️ Final Ethical Reminder
+
+Denna övning är designad för:
+- **Educational purposes** - lära sig både attack och defense
+- **Controlled environment** - egen testapplikation
+- **Professional development** - bygga säkerhetskompetens
+
+**Använd ALDRIG dessa tekniker för**:
+- Cracking av kommersiell mjukvara utan tillstånd
+- Distribution av crackade versioner
+- Att kringgå licenssystem du inte äger
+
+**Remember**: Som med alla kraftfulla verktyg, kommer etik och ansvar först. Använd din kunskap för att göra mjukvara säkrare, inte för att skada utvecklare eller företag.
+
+---
+
+**🏁 Challenge Start!**
+
+**Red Team**: Möt på måndag 09:00 för kickoff. Ni har 1 vecka.
+
+**Blue Team**: Ni får red teams rapport följande måndag. Sedan 1 vecka att patcha.
+
+**Demo Day**: Fredag två veckor senare - presentations och utse vinnare av den röda t-shirten! 🎽
+
+**Lycka till, och må den bästa lösningen vinna!**
